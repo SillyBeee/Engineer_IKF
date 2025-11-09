@@ -1,0 +1,3 @@
+[submodule "src/communicate_2025"]
+	path = src/communicate_2025
+	url = git@github.com:Fluorine-fish/USB_communicate_for_gazebo.git
