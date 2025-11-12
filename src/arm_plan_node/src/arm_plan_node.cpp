@@ -5,7 +5,10 @@ ArmPlanNode::ArmPlanNode(rclcpp::NodeOptions options) : Node("arm_plan_node", op
   //参数初始化与发布订阅初始化
   this->planning_group_name_ = this->declare_parameter<std::string>("planning_group_name", "manipulator");
   this->end_effector_link_name_ = this->declare_parameter<std::string>("end_effector_link_name", "ee_link");
-
+  this->debug_ = this->declare_parameter<bool>("debug", true);
+  RCLCPP_INFO(this->get_logger(), "Planning Group: %s", this->planning_group_name_.c_str());
+  RCLCPP_INFO(this->get_logger(), "End Effector Link: %s", this->end_effector_link_name_.c_str());
+  RCLCPP_INFO(this->get_logger(), "Debug mode: %s", this->debug_ ? "true" : "false");
   
 
 
