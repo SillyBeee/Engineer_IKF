@@ -1,0 +1,6 @@
+/**:
+  ros__parameters:
+    # 是否开启调试模式
+    debug: true
+    planning_group_name: "mini_arm_group"
+    # end_effector_link: 

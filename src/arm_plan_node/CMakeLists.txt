@@ -49,10 +49,8 @@ install(TARGETS
 # )
 
 install(DIRECTORY
-    model
     launch
     config
-    rviz
     DESTINATION share/${PROJECT_NAME}
 )
 

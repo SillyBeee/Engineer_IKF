@@ -64,12 +64,12 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "package_name",
-                default_value="arm_plan_node",
+                default_value="arm_description",
                 description="包含 URDF 和 RViz 配置的 ROS 2 包名",
             ),
             DeclareLaunchArgument(
                 "urdf_relative_path",
-                default_value="model/urdf/miniarm.urdf",
+                default_value="urdf/miniarm.urdf",
                 description="URDF 在 share 目录下的相对路径",
             ),
             DeclareLaunchArgument(

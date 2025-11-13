@@ -3,7 +3,7 @@
     <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
 
     <!-- Import mini1 urdf file -->
-    <xacro:include filename="$(find arm_plan_node)/model/urdf/miniarm.urdf" />
+    <xacro:include filename="$(find arm_description)/urdf/miniarm.urdf" />
 
     <!-- Import control_xacro -->
     <xacro:include filename="mini1.ros2_control.xacro" />
