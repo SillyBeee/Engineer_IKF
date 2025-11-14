@@ -6,7 +6,7 @@
 #include "moveit_msgs/msg/display_trajectory.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
-#include "std_msgs/msg/float64_multi_array.hpp"
+#include "std_msgs/msg/float32_multi_array.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 
@@ -21,7 +21,8 @@ public:
 
   //运动规划函数(支持外部调用)
   bool PlanToPose(const geometry_msgs::msg::PoseStamped& target_pose);
-  bool PlanToPose(const std::vector<float>& target_joint_pose);
+  bool PlanToPose(const std::vector<double>& target_joint_pose);
+  bool SolveIK(const geometry_msgs::msg::Pose& target_pose,std::vector<double>& joint_pose);
   bool ExecutePlan();
 
 
@@ -29,14 +30,14 @@ private:
 
 
   //回调函数
-  void TargetEndPoseCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
-  void TargetJointPoseCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
-  void JointStateCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
+  void TargetEndPoseCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
+  void TargetJointPoseCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
+  void JointStateCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
 
   //发布订阅接口
-  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr sub_target_end_pose_;
-  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr sub_target_joint_pose_;
-  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr sub_joint_state_;   //接受来自下位机的关节状态
+  rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr sub_target_end_pose_;
+  rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr sub_target_joint_pose_;
+  rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr sub_joint_state_;   //接受来自下位机的关节状态
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr pub_display_trajectory_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr pub_joint_state_;  //发布给robot_description的关节状态用于实时更新
 
