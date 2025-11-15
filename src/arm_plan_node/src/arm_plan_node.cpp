@@ -223,6 +223,7 @@ bool ArmPlanNode::ExecutePlan(){
   }
   else{
     RCLCPP_INFO(this->get_logger(),"在真实环境中运行");
+    // current_plan_
     return true;
   }
 }
@@ -269,13 +270,28 @@ void ArmPlanNode::JointStateCallback(const std_msgs::msg::Float32MultiArray::Sha
     RCLCPP_WARN(this->get_logger(), "Expected %d, but got %zu", this->joints_num_, msg->data.size());
     return;
   }
+
+  // 检查 MoveGroup 是否已初始化
+  if (!move_group_) {
+    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "MoveGroup 尚未初始化，无法发布关节状态");
+    return;
+  }
+
   sensor_msgs::msg::JointState joint_state_msg;
   joint_state_msg.header.stamp = this->now();
   joint_state_msg.name.resize(this->joints_num_);
   joint_state_msg.position.resize(this->joints_num_);
   //TODO: 根据具体机械臂的关节命名规则进行修改
-  
-  
+  const std::vector<std::string>& joint_names = move_group_->getActiveJoints();
+  if (joint_names.size() != this->joints_num_) {
+      RCLCPP_ERROR_ONCE(this->get_logger(), "MoveGroup中的关节数量 (%zu) 与参数 joints_num (%d) 不匹配", joint_names.size(), this->joints_num_);
+      return;
+  }
+  joint_state_msg.name = joint_names;
+  joint_state_msg.position.assign(msg->data.begin(), msg->data.end());
+  // 发布关节状态消息
+  // RCLCPP_INFO(this->get_logger(), "Publishing joint states:");
+  pub_joint_state_->publish(joint_state_msg);
 }
 
 int main(int argc, char * argv[]){
