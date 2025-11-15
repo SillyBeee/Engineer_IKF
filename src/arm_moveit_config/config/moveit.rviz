@@ -5,7 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /MotionPlanning1
-        - /TF1
+        - /MotionPlanning1/Planned Path1
         - /TF1/Frames1
       Splitter Ratio: 0.5
     Tree Height: 551
@@ -107,7 +107,7 @@ Visualization Manager:
         Robot Alpha: 0.5
         Robot Color: 150; 50; 150
         Show Robot Collision: false
-        Show Robot Visual: true
+        Show Robot Visual: false
         Show Trail: false
         State Display Time: 0.05 s
         Trail Step Size: 1
@@ -190,45 +190,21 @@ Visualization Manager:
       Value: true
       Velocity_Scaling_Factor: 0.1
     - Class: rviz_default_plugins/TF
-      Enabled: true
+      Enabled: false
       Filter (blacklist): ""
       Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        base_link:
-          Value: true
-        link1:
-          Value: true
-        link2:
-          Value: true
-        link3:
-          Value: true
-        link4:
-          Value: true
-        link5:
-          Value: true
-        link6:
-          Value: true
-        world:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: false
       Tree:
-        world:
-          base_link:
-            link1:
-              link2:
-                link3:
-                  link4:
-                    link5:
-                      link6:
-                        {}
+        {}
       Update Interval: 0
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -247,7 +223,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 0.7192690968513489
+      Distance: 1.1317838430404663
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -262,10 +238,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3400002121925354
+      Pitch: 0.5150001049041748
       Target Frame: base_link
       Value: Orbit (rviz_default_plugins)
-      Yaw: 4.5070390701293945
+      Yaw: 4.9070587158203125
     Saved: ~
 Window Geometry:
   Displays:
@@ -283,5 +259,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 2143
-  X: 1638
-  Y: 369
+  X: 90
+  Y: 194

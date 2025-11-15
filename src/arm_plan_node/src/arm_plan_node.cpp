@@ -36,6 +36,12 @@ ArmPlanNode::ArmPlanNode(rclcpp::NodeOptions options) : Node("arm_plan_node", op
   this->pub_joint_state_ = this->create_publisher<sensor_msgs::msg::JointState>(
     "/joint_states", 10
   );
+  this->pub_target_joint_pose_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+    "/miniarm/joint_position", 10
+  );
+  this->pub_target_joint_vel_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+    "/miniarm/joint_velocity", 10
+  );
 
 
   //Moveit组件初始化
@@ -223,7 +229,47 @@ bool ArmPlanNode::ExecutePlan(){
   }
   else{
     RCLCPP_INFO(this->get_logger(),"在真实环境中运行");
-    // current_plan_
+    const auto& trajectory = current_plan_.trajectory.joint_trajectory;
+    const auto& points = trajectory.points;
+
+    if (points.empty()) {
+        RCLCPP_WARN(this->get_logger(), "规划出的轨迹没有路径点，无法执行。");
+        return false;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "开始发送轨迹点，共 %zu 个", points.size());
+    rclcpp::Rate rate(100); // 以 100Hz 的频率检查是否到达下一个时间点
+    auto start_time = this->now();
+
+    for (const auto& point : points) {
+        // 等待直到当前时间超过该路径点的时间戳
+        while (rclcpp::ok() && (this->now() - start_time) < point.time_from_start) {
+            rate.sleep();
+        }
+
+        // 准备要发送给下位机的消息
+        std_msgs::msg::Float32MultiArray pos_msg;
+        std_msgs::msg::Float32MultiArray vel_msg;
+        
+        // 请根据你的下位机协议调整
+        pos_msg.data.insert(pos_msg.data.end(), point.positions.begin(), point.positions.end());
+        if (!point.velocities.empty()) {
+            vel_msg.data.insert(vel_msg.data.end(), point.velocities.begin(), point.velocities.end());
+        } else {
+            // 如果轨迹中没有速度信息，可以填充0
+            std::vector<float> zero_velocities(this->joints_num_, 0.0f);
+            vel_msg.data.insert(vel_msg.data.end(), zero_velocities.begin(), zero_velocities.end());
+        }
+        
+        pub_target_joint_pose_->publish(pos_msg);
+        pub_target_joint_vel_->publish(vel_msg);
+
+        if (!rclcpp::ok()) {
+            RCLCPP_WARN(this->get_logger(), "执行被中断");
+            return false;
+        }
+    }
+    RCLCPP_INFO(this->get_logger(), "轨迹执行完毕");
     return true;
   }
 }
