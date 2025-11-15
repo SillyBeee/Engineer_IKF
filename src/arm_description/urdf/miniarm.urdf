@@ -153,7 +153,7 @@
     <child
       link="link2" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
     <limit
       lower="-1.1570796"
       upper="1.1570796"
@@ -179,7 +179,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="0 0 3.14" />
       <geometry>
         <mesh
           filename="package://arm_description/meshes/link3.STL" />
@@ -211,7 +211,7 @@
     <child
       link="link3" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
     <limit
       lower="-0.785398"
       upper="1.1570796"
@@ -237,7 +237,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="0 0 3.14" />
       <geometry>
         <mesh
           filename="package://arm_description/meshes/link4.STL" />
@@ -263,7 +263,7 @@
     type="revolute">
     <origin
       xyz="0 0.012 0.054"
-      rpy="-1.5708 0 0" />
+      rpy="1.5708 0 3.1416" />
     <parent
       link="link3" />
     <child
@@ -295,7 +295,7 @@
     <visual>
       <origin
         xyz="0 0 0"
-        rpy="0 0 0" />
+        rpy="0 3.14 0" />
       <geometry>
         <mesh
           filename="package://arm_description/meshes/link5.STL" />
