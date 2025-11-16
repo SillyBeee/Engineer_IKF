@@ -1,6 +1,6 @@
 arm_plan_node:
   ros__parameters:
-    debug: true
+    debug: false
     planning_group_name: "mini_arm_group"
     joints_num: 6
     end_effector_link_name: "cc"

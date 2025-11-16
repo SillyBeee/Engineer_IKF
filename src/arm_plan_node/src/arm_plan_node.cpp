@@ -17,14 +17,23 @@ ArmPlanNode::ArmPlanNode(rclcpp::NodeOptions options) : Node("arm_plan_node", op
   RCLCPP_INFO(this->get_logger(), "Debug mode: %s", this->debug_ ? "true" : "false");
   RCLCPP_INFO(this->get_logger(), "Joints Number: %d", this->joints_num_);
 
+  // 为耗时的操作创建一个独立的回调组
+  this->callback_group_time_consuming_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+  // 将订阅选项单独拿出来，以便设置回调组
+  auto subscription_options = rclcpp::SubscriptionOptions();
+  subscription_options.callback_group = this->callback_group_time_consuming_;
+
+
   //发布订阅初始化
   this->sub_target_end_pose_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
     "/target_end_pose", 10,
-    std::bind(&ArmPlanNode::TargetEndPoseCallback, this, std::placeholders::_1)
+    std::bind(&ArmPlanNode::TargetEndPoseCallback, this, std::placeholders::_1),
+    subscription_options
   );
   this->sub_target_joint_pose_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
     "/target_joint_pose", 10,
-    std::bind(&ArmPlanNode::TargetJointPoseCallback, this, std::placeholders::_1)
+    std::bind(&ArmPlanNode::TargetJointPoseCallback, this, std::placeholders::_1),
+    subscription_options
   );
   this->sub_joint_state_ = this->create_subscription<std_msgs::msg::Float32MultiArray>(
     "/communicate/miniarm_pos", 10,

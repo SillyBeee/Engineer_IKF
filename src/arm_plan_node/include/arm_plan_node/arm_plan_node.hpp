@@ -34,6 +34,8 @@ private:
   void TargetJointPoseCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
   void JointStateCallback(const std_msgs::msg::Float32MultiArray::SharedPtr msg);
 
+  //耗时回调组，用于多线程执行器
+  rclcpp::CallbackGroup::SharedPtr callback_group_time_consuming_;
   //发布订阅接口
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr sub_target_end_pose_;  //接受目标末端位姿指令
   rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr sub_target_joint_pose_; //接受目标关节姿态指令
