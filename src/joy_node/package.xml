@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>arm_plan_node</name>
+  <name>joy_node</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="3576527475a@gmail.com">ma</maintainer>
@@ -10,13 +10,8 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>geometry_msgs</depend>
-  <depend>moveit_msgs</depend>
-  <depend>moveit_ros_planning_interface</depend>
-  <depend>moveit_servo</depend>
-  <depend>tf2_geometry_msgs</depend>
-  <depend>tf2_eigen</depend>
-  <depend>moveit_core</depend>
+  <depend>std_msgs</depend>
+
   
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>

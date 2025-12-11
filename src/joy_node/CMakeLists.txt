@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(arm_plan_node)
+project(joy_node)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -9,52 +9,36 @@ Set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
-find_package(tf2_eigen REQUIRED)
-find_package(moveit_msgs REQUIRED)
-find_package(moveit_ros_planning_interface REQUIRED)
-find_package(moveit_core REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(moveit_servo REQUIRED)
+find_package(SDL2 REQUIRED)
+find_package(std_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 include_directories(
   include
 )
-add_executable(arm_plan_node src/arm_plan_node.cpp)
-ament_target_dependencies(arm_plan_node
+
+file(GLOB SOURCES  src/*.cpp)
+add_executable(joy_node ${SOURCES})
+ament_target_dependencies(joy_node
   rclcpp
-  geometry_msgs
-  moveit_msgs
-  moveit_servo
-  moveit_ros_planning_interface
-  tf2_geometry_msgs
-  tf2_eigen
-  moveit_core
-  sensor_msgs
+  SDL2
+  std_msgs
 )
-target_link_libraries(arm_plan_node "${cpp_typesupport_target}")
+target_link_libraries(joy_node "${cpp_typesupport_target}")
 
 # 安装可执行文件
 install(TARGETS
-  arm_plan_node
+  joy_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# 安装启动文件
-# install(DIRECTORY
-#   launch
-#   DESTINATION share/${PROJECT_NAME}
-# )
 
-install(DIRECTORY
-    launch
-    config
-    DESTINATION share/${PROJECT_NAME}
-)
+# install(DIRECTORY
+#     launch
+#     config
+#     DESTINATION share/${PROJECT_NAME}
+# )
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

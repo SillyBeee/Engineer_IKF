@@ -106,4 +106,15 @@ def generate_launch_description():
         )
     )
 
+    # ld.add_action(
+    #     Node(
+    #         package="moveit_servo",
+    #         executable="servo_node",
+    #         name="servo_node",
+    #         output="screen",
+    #         parameters=[ moveit_config.robot_description, str(moveit_config.package_path / "config/servo.yaml") ],
+    #         # condition=IfCondition(LaunchConfiguration("use_fake_hardware"))  # 或按需控制
+    #     )
+    # )
+
     return ld
