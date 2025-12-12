@@ -11,12 +11,12 @@ ArmPlanNode::ArmPlanNode(rclcpp::NodeOptions options)
     : Node("arm_plan_node", options) {
   RCLCPP_INFO(this->get_logger(), "ArmPlanNode has been started.");
   // 参数初始化与发布订阅初始化
-  this->planning_group_name_ = this->declare_parameter<std::string>(
-      "planning_group_name", "mini_arm_group");
-  this->end_effector_link_name_ =
-      this->declare_parameter<std::string>("end_effector_link_name", "cc");
-  this->debug_ = this->declare_parameter<bool>("debug", true);
-  this->joints_num_ = this->declare_parameter<uint8_t>("joints_num", 6);
+  this->get_parameter_or<std::string>(
+      "planning_group_name", this->planning_group_name_, "mini_arm_group");
+  this->get_parameter_or<std::string>("end_effector_link_name",
+                                      this->end_effector_link_name_, "cc");
+  this->get_parameter_or<bool>("debug", this->debug_, true);
+  this->get_parameter_or<uint8_t>("joints_num", this->joints_num_, 6);
   RCLCPP_INFO(this->get_logger(), "Planning Group: %s",
               this->planning_group_name_.c_str());
   RCLCPP_INFO(this->get_logger(), "End Effector Link: %s",
@@ -24,6 +24,13 @@ ArmPlanNode::ArmPlanNode(rclcpp::NodeOptions options)
   RCLCPP_INFO(this->get_logger(), "Debug mode: %s",
               this->debug_ ? "true" : "false");
   RCLCPP_INFO(this->get_logger(), "Joints Number: %d", this->joints_num_);
+
+  // this->declare_parameter<std::string>("moveit_servo.move_group_name",
+  //                                      this->planning_group_name_);
+  // this->declare_parameter<std::string>("moveit_servo.planning_frame",
+  //                                      "base_link");
+  // this->declare_parameter<std::string>("moveit_servo.command_in_type",
+  //                                      "unitless");
 
   // 为耗时的操作创建一个独立的回调组
   this->callback_group_time_consuming_ =
@@ -53,11 +60,14 @@ ArmPlanNode::ArmPlanNode(rclcpp::NodeOptions options)
   this->sub_joy_data_ =
       this->create_subscription<std_msgs::msg::Float64MultiArray>(
           "/joy_data", 10,
-          std::bind(&ArmPlanNode::JoyDataCallback, this,
-                    std::placeholders::_1),subscription_options);
+          std::bind(&ArmPlanNode::JoyDataCallback, this, std::placeholders::_1),
+          subscription_options);
   this->pub_display_trajectory_ =
       this->create_publisher<moveit_msgs::msg::DisplayTrajectory>(
           "display_planned_path", 10);
+  this->pub_fake_controller_ =
+      this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
+          "/mini_arm_controller/joint_trajectory", 10);
   this->pub_joint_state_ =
       this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
   this->pub_target_joint_pose_ =
@@ -326,10 +336,14 @@ bool ArmPlanNode::ExecuteServo(moveit_servo::KinematicState &state) {
   if (status != moveit_servo::StatusCode::NO_WARNING) {
     RCLCPP_WARN(this->get_logger(), "Moveit Servo 状态异常，当前状态码: %d",
                 static_cast<int>(status));
+    RCLCPP_INFO(this->get_logger(), "pos: [%f, %f, %f, %f, %f, %f]",
+                state.positions[0], state.positions[1], state.positions[2],
+                state.positions[3], state.positions[4], state.positions[5]);
     return false;
   }
   if (this->debug_) {
     // RCLCPP_INFO(this->get_logger(), "在虚拟环境中运行伺服控制");
+    // 更新规划场景中的机械臂状态
     auto current_state =
         planning_scene_monitor_->getStateMonitor()->getCurrentState();
     if (!current_state) {
@@ -338,8 +352,29 @@ bool ArmPlanNode::ExecuteServo(moveit_servo::KinematicState &state) {
     }
     current_state->setJointGroupPositions(planning_group_name_,
                                           state.positions);
+    RCLCPP_INFO(this->get_logger(), "pos: [%f, %f, %f, %f, %f, %f]",
+                state.positions[0], state.positions[1], state.positions[2],
+                state.positions[3], state.positions[4], state.positions[5]);
     planning_scene_monitor_->updateFrameTransforms();
     planning_scene_monitor_->updateSceneWithCurrentState();
+
+    // 发布到假控制器
+    if (!pub_fake_controller_) {
+      RCLCPP_ERROR(get_logger(), "fake controller publisher 未初始化");
+      return false;
+    }
+    trajectory_msgs::msg::JointTrajectory traj;
+    traj.header.stamp = this->now();
+    traj.joint_names = move_group_->getActiveJoints();
+
+    trajectory_msgs::msg::JointTrajectoryPoint point;
+    point.positions.assign(state.positions.begin(), state.positions.end());
+    point.velocities.assign(state.velocities.begin(), state.velocities.end());
+    point.time_from_start = rclcpp::Duration::from_seconds(
+        servo_params_.publish_period);
+    traj.points.push_back(point);
+
+    pub_fake_controller_->publish(traj);
   } else {
     // RCLCPP_INFO(this->get_logger(), "在真实环境中运行伺服控制");
     // 准备要发送给下位机的消息

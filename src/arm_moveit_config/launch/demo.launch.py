@@ -5,11 +5,19 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from moveit_configs_utils import MoveItConfigsBuilder
-
+from launch_param_builder import ParameterBuilder
 
 def generate_launch_description():
-    moveit_config = MoveItConfigsBuilder("mini1", package_name="arm_moveit_config").to_moveit_configs()
-
+    moveit_config = MoveItConfigsBuilder(
+        "mini1", package_name="arm_moveit_config"
+    ).to_moveit_configs()
+    servo_params = {
+        "moveit_servo": ParameterBuilder("arm_moveit_config")
+        .yaml("config/servo.yaml")
+        .to_dict()
+    }
+    acceleration_filter_update_period = {"update_period": 0.01}
+    planning_group_name = {"planning_group_name": "mini_arm_group"}
     # ------------------------------------------------------------
     # 以下代码逻辑源自 generate_demo_launch，但我们将其展开
     # 以便添加 use_fake_hardware 的控制逻辑
@@ -30,12 +38,18 @@ def generate_launch_description():
     )
 
     # 其他标准参数
-    ld.add_action(DeclareLaunchArgument("db", default_value="False", description="Start database"))
-    ld.add_action(DeclareLaunchArgument("debug", default_value="False", description="Debug mode"))
+    ld.add_action(
+        DeclareLaunchArgument("db", default_value="False", description="Start database")
+    )
+    ld.add_action(
+        DeclareLaunchArgument("debug", default_value="False", description="Debug mode")
+    )
     ld.add_action(DeclareLaunchArgument("use_rviz", default_value="True"))
 
     # 2. 虚拟关节 TF (如果有)
-    virtual_joints_launch = launch_package_path / "launch/static_virtual_joint_tfs.launch.py"
+    virtual_joints_launch = (
+        launch_package_path / "launch/static_virtual_joint_tfs.launch.py"
+    )
     if virtual_joints_launch.exists():
         ld.add_action(
             IncludeLaunchDescription(
@@ -46,21 +60,27 @@ def generate_launch_description():
     # 3. Robot State Publisher (发布 TF)
     ld.add_action(
         IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch_package_path / "launch/rsp.launch.py")),
+            PythonLaunchDescriptionSource(
+                str(launch_package_path / "launch/rsp.launch.py")
+            ),
         )
     )
 
     # 4. Move Group (核心规划)
     ld.add_action(
         IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch_package_path / "launch/move_group.launch.py")),
+            PythonLaunchDescriptionSource(
+                str(launch_package_path / "launch/move_group.launch.py")
+            ),
         )
     )
 
     # 5. RViz
     ld.add_action(
         IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch_package_path / "launch/moveit_rviz.launch.py")),
+            PythonLaunchDescriptionSource(
+                str(launch_package_path / "launch/moveit_rviz.launch.py")
+            ),
             condition=IfCondition(LaunchConfiguration("use_rviz")),
         )
     )
@@ -68,7 +88,9 @@ def generate_launch_description():
     # 6. Database (可选)
     ld.add_action(
         IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch_package_path / "launch/warehouse_db.launch.py")),
+            PythonLaunchDescriptionSource(
+                str(launch_package_path / "launch/warehouse_db.launch.py")
+            ),
             condition=IfCondition(LaunchConfiguration("db")),
         )
     )
@@ -106,15 +128,25 @@ def generate_launch_description():
         )
     )
 
-    # ld.add_action(
-    #     Node(
-    #         package="moveit_servo",
-    #         executable="servo_node",
-    #         name="servo_node",
-    #         output="screen",
-    #         parameters=[ moveit_config.robot_description, str(moveit_config.package_path / "config/servo.yaml") ],
-    #         # condition=IfCondition(LaunchConfiguration("use_fake_hardware"))  # 或按需控制
-    #     )
-    # )
+    ld.add_action(
+        Node(
+            package="moveit_servo",
+            executable="servo_node",
+            name="servo_node",
+            output="screen",
+            parameters=[
+                moveit_config.robot_description,
+                # str(moveit_config.package_path / "config/servo.yaml"),
+                servo_params,
+                acceleration_filter_update_period,
+                planning_group_name,
+                moveit_config.robot_description,
+                moveit_config.robot_description_semantic,
+                moveit_config.robot_description_kinematics,
+                moveit_config.joint_limits
+            ]
+            # condition=IfCondition(LaunchConfiguration("use_fake_hardware"))  # 或按需控制
+        )
+    )
 
     return ld

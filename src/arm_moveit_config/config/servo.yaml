@@ -1,13 +1,15 @@
 # servo.yaml
-servo_server:
-  ros__parameters:
-    command_in_type: "geometry_msgs/TwistStamped"
-    command_in_topic: "/servo_server/delta_twist_cmds"
-    servo_frame_id: "base_link"          # 接收速度的参考坐标系
-    root_frame_id: "base_link"
-    publish_period_ms: 10                # 控制频率 (ms)
-    scale_linear: 1.0                    # 线速度缩放
-    scale_angular: 1.0                   # 角速度缩放
-    collision_check: true
-    # 限速与低通滤波等（按需增加）
-    # low_pass_filter_coefficient: 0.2
+
+move_group_name: "mini_arm_group"
+command_in_type: unitless
+command_in_topic: "/moveit_servo/delta_twist_cmds"
+servo_frame_id: "base_link" # 接收速度的参考坐标系
+root_frame_id: "base_link"
+publish_period_ms: 10 # 控制频率 (ms)
+scale_linear: 1 # 线速度缩放
+scale_angular: 1 # 角速度缩放
+collision_check: true
+lower_singularity_threshold: 35.0    # 角度（deg）
+hard_stop_singularity_threshold: 50.0 # 角度（deg）
+# 限速与低通滤波等（按需增加）
+# low_pass_filter_coefficient: 0.2

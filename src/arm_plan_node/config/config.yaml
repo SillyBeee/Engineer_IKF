@@ -10,6 +10,6 @@ arm_plan_node:
     servo_frame_id: "base_link"          # 接收速度的参考坐标系
     root_frame_id: "base_link"
     publish_period_ms: 10                # 控制频率 (ms)
-    scale_linear: 1.0                    # 线速度缩放
-    scale_angular: 1.0                   # 角速度缩放
+    scale_linear: 0.2                    # 线速度缩放
+    scale_angular: 0.2                   # 角速度缩放
     collision_check: true

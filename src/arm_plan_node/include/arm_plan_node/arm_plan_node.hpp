@@ -57,8 +57,11 @@ private:
       sub_joint_state_; // 接受来自下位机的关节状态
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr
       sub_joy_data_; // 接受来自手柄的控制数据
+
   rclcpp::Publisher<moveit_msgs::msg::DisplayTrajectory>::SharedPtr
       pub_display_trajectory_; // 发布规划轨迹
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr
+      pub_fake_controller_; // 仿真模式下发给 fake joint controller
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr
       pub_target_joint_pose_; // 发布给下位机的目标关节姿态
   rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr
