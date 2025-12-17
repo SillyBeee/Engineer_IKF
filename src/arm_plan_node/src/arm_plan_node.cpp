@@ -324,7 +324,7 @@ bool ArmPlanNode::ExecutePlan() {
 }
 
 bool ArmPlanNode::ExecuteServo(moveit_servo::KinematicState &state) {
-  RCLCPP_INFO(this->get_logger(), "执行伺服控制");
+  // RCLCPP_INFO(this->get_logger(), "执行伺服控制");
 
   if (!servo_) {
     RCLCPP_WARN(this->get_logger(),
@@ -333,7 +333,10 @@ bool ArmPlanNode::ExecuteServo(moveit_servo::KinematicState &state) {
   }
 
   auto status = this->servo_->getStatus();
-  if (status != moveit_servo::StatusCode::NO_WARNING) {
+  if (status != moveit_servo::StatusCode::NO_WARNING && 
+      status != moveit_servo::StatusCode::DECELERATE_FOR_APPROACHING_SINGULARITY &&
+      status != moveit_servo::StatusCode:: DECELERATE_FOR_LEAVING_SINGULARITY
+    ) {
     RCLCPP_WARN(this->get_logger(), "Moveit Servo 状态异常，当前状态码: %d",
                 static_cast<int>(status));
     RCLCPP_INFO(this->get_logger(), "pos: [%f, %f, %f, %f, %f, %f]",
@@ -342,16 +345,17 @@ bool ArmPlanNode::ExecuteServo(moveit_servo::KinematicState &state) {
     return false;
   }
   if (this->debug_) {
-    // RCLCPP_INFO(this->get_logger(), "在虚拟环境中运行伺服控制");
+    RCLCPP_INFO(this->get_logger(), "在虚拟环境中运行伺服控制");
     // 更新规划场景中的机械臂状态
-    auto current_state =
-        planning_scene_monitor_->getStateMonitor()->getCurrentState();
-    if (!current_state) {
-      RCLCPP_WARN(get_logger(), "获取当前状态失败");
-      return false;
-    }
-    current_state->setJointGroupPositions(planning_group_name_,
-                                          state.positions);
+
+    // auto current_state =
+    //     planning_scene_monitor_->getStateMonitor()->getCurrentState();
+    // if (!current_state) {
+    //   RCLCPP_WARN(get_logger(), "获取当前状态失败");
+    //   return false;
+    // }
+    // current_state->setJointGroupPositions(planning_group_name_,
+    //                                       state.positions);
     RCLCPP_INFO(this->get_logger(), "pos: [%f, %f, %f, %f, %f, %f]",
                 state.positions[0], state.positions[1], state.positions[2],
                 state.positions[3], state.positions[4], state.positions[5]);
@@ -479,7 +483,7 @@ void ArmPlanNode::JointStateCallback(
 
 void ArmPlanNode::JoyDataCallback(
     const std_msgs::msg::Float64MultiArray::SharedPtr msg) {
-  if (msg->data.size() != 2) {
+  if (msg->data.size() != 4) {
     RCLCPP_WARN(this->get_logger(),
                 "接收到的手柄数据数量与预期不符，忽略该消息");
     return;
@@ -487,8 +491,8 @@ void ArmPlanNode::JoyDataCallback(
   moveit_servo::TwistCommand twist_command;
   twist_command.frame_id = "base_link"; // 根据具体机械臂的基座链接名称进行修改
   twist_command.velocities.setZero();
-  twist_command.velocities[0] = msg->data[0]; // x方向线速度
-  twist_command.velocities[1] = msg->data[1]; // y方向线速度
+  twist_command.velocities[0] = msg->data[1]; // x方向线速度
+  twist_command.velocities[1] = msg->data[3]; // y方向线速度
   this->MoveServo(twist_command);
 }
 

@@ -25,17 +25,29 @@ int main(int argc, char **argv) {
         static_cast<int>(drivers::GamePad::GamePadInput::LEFT_STICK_X);
     const auto ly =
         static_cast<int>(drivers::GamePad::GamePadInput::LEFT_STICK_Y);
+    const auto rx =
+        static_cast<int>(drivers::GamePad::GamePadInput::RIGHT_STICK_X);
+    const auto ry =
+        static_cast<int>(drivers::GamePad::GamePadInput::RIGHT_STICK_Y);
 
     while (rclcpp::ok() && running.load()) {
       const auto left_x_raw = gamepad.GetInputState(lx);
       const auto left_y_raw = gamepad.GetInputState(ly);
+      const auto right_x_raw = gamepad.GetInputState(rx);
+      const auto right_y_raw = gamepad.GetInputState(ry);
+
       auto left_x = static_cast<double>(left_x_raw) / 32768.0;
       auto left_y = static_cast<double>(left_y_raw) / 32768.0;
+      auto right_x = static_cast<double>(right_x_raw) / 32768.0;
+      auto right_y = static_cast<double>(right_y_raw) / 32768.0;
+
       RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 100,
-                           "Left stick: x=%f y=%f", left_x, left_y);
+                           "Left stick: x=%f y=%f , right: x=%f y=%f", left_x, left_y, right_x, right_y);
       std_msgs::msg::Float64MultiArray msg;
       msg.data.push_back(left_x);
       msg.data.push_back(left_y);
+      msg.data.push_back(right_x);
+      msg.data.push_back(right_y);
       pub->publish(msg);
       rate.sleep();
     }

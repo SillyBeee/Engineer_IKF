@@ -1,16 +1,18 @@
 #include <SDL_gamecontroller.h>
 #include <driver_gamepad.hpp>
 #include <memory>
+#include <SDL.h>
+#include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
+
 namespace drivers
 {
 
 bool GamePad::Init()
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0)
-    {   
+    {
         RCLCPP_ERROR(rclcpp::get_logger("GamePad"), "SDL_Init failed: %s", SDL_GetError());
-
         return false;
     }
 
@@ -24,8 +26,8 @@ bool GamePad::Init()
     }
 
     if (!this->instance_)
-    {   
-        RCLCPP_WARN(rclcpp::get_logger("GamePad"), "No Controller found.");
+    {
+        RCLCPP_WARN(rclcpp::get_logger("GamePad"), "No controller found.");
         return false;
     }
     this->running_ = true;
@@ -46,6 +48,7 @@ int16_t GamePad::GetInputState(int input)
 void GamePad::PollLoop()
 {
     SDL_Event event;
+
     auto store_axis = [this](GamePadInput input, int16_t value)
     {
         auto idx = static_cast<size_t>(input);
@@ -65,12 +68,59 @@ void GamePad::PollLoop()
 
     while (this->running_)
     {
+        // 轮询兜底：运行时检查是否仍连接
+        if (this->instance_ && !SDL_GameControllerGetAttached(this->instance_.get()))
+        {
+            RCLCPP_WARN(rclcpp::get_logger("GamePad"), "Controller detached (GetAttached == false).");
+            SDL_GameControllerClose(this->instance_.release());
+            // 清空状态，避免 UI 读到残值
+            for (auto &v : gamepad_input_state_) v = 0;
+        }
+
         while (SDL_PollEvent(&event))
         {
             switch (event.type)
             {
+                case SDL_CONTROLLERDEVICEADDED:
+                {
+                    // 动态插入：如果当前没有手柄，尝试打开
+                    if (!this->instance_ && SDL_IsGameController(event.cdevice.which))
+                    {
+                        SDL_GameController* c = SDL_GameControllerOpen(event.cdevice.which);
+                        if (c)
+                        {
+                            this->instance_.reset(c);
+                            RCLCPP_INFO(rclcpp::get_logger("GamePad"), "Controller added/opened: %s", SDL_GameControllerName(c) ? SDL_GameControllerName(c) : "unknown");
+                        }
+                        else
+                        {
+                            RCLCPP_WARN(rclcpp::get_logger("GamePad"), "SDL_GameControllerOpen failed: %s", SDL_GetError());
+                        }
+                    }
+                    break;
+                }
+                case SDL_CONTROLLERDEVICEREMOVED:
+                {
+                    // 注意：which 是 instance id（SDL_JoystickID）
+                    if (this->instance_)
+                    {
+                        SDL_Joystick* joy = SDL_GameControllerGetJoystick(this->instance_.get());
+                        SDL_JoystickID my_id = joy ? SDL_JoystickInstanceID(joy) : -1;
+
+                        if (my_id == event.cdevice.which)
+                        {
+                            RCLCPP_WARN(rclcpp::get_logger("GamePad"), "Controller removed.");
+                            SDL_GameControllerClose(this->instance_.release());
+                            for (auto &v : gamepad_input_state_) v = 0;
+                        }
+                    }
+                    break;
+                }
                 case SDL_CONTROLLERAXISMOTION:
                 {
+                    // 如果已经断开，不处理
+                    if (!this->instance_) break;
+
                     switch (event.caxis.axis)
                     {
                         case SDL_CONTROLLER_AXIS_LEFTX:
@@ -99,6 +149,8 @@ void GamePad::PollLoop()
                 case SDL_CONTROLLERBUTTONDOWN:
                 case SDL_CONTROLLERBUTTONUP:
                 {
+                    if (!this->instance_) break;
+
                     bool pressed = (event.type == SDL_CONTROLLERBUTTONDOWN);
                     switch (event.cbutton.button)
                     {
