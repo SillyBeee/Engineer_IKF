@@ -1,5 +1,6 @@
 #include <arm_plan_node/arm_plan_node.hpp>
 #include <boost/token_functions.hpp>
+#include <cstddef>
 #include <memory>
 #include <moveit_servo/utils/common.hpp>
 #include <moveit_servo/utils/datatypes.hpp>
@@ -257,11 +258,110 @@ bool ArmPlanNode::SolveIK(const geometry_msgs::msg::Pose &target_pose,
   return true;
 }
 
+
+std::vector<trajectory_msgs::msg::JointTrajectoryPoint>
+ArmPlanNode::DLSS_Trajectory(moveit_msgs::msg::RobotTrajectory &input_trajectory,
+                             uint8_t scaling_factor) {
+  std::vector<trajectory_msgs::msg::JointTrajectoryPoint> output_trajectory;
+
+  const auto &in_points = input_trajectory.joint_trajectory.points;
+  if (in_points.empty()) {
+    RCLCPP_WARN(this->get_logger(), "输入轨迹为空，无法进行插值");
+    return output_trajectory;
+  }
+
+  // scaling_factor=1：不加密，直接返回原点列
+  if (scaling_factor <= 1) {
+    output_trajectory = in_points;
+    return output_trajectory;
+  }
+
+  // 帮助函数：线性插值 vector<double>
+  auto lerp_vec = [](const std::vector<double> &a, const std::vector<double> &b,
+                     double t) -> std::vector<double> {
+    const size_t n = std::min(a.size(), b.size());
+    std::vector<double> out(n, 0.0);
+    for (size_t i = 0; i < n; ++i) {
+      out[i] = a[i] + (b[i] - a[i]) * t;
+    }
+    return out;
+  };
+
+  // 帮助函数：线性插值 time_from_start（保持总时长不变）
+  auto lerp_time = [](const builtin_interfaces::msg::Duration &a,
+                      const builtin_interfaces::msg::Duration &b,
+                      double t) -> builtin_interfaces::msg::Duration {
+    const int64_t ans = rclcpp::Duration(a).nanoseconds();
+    const int64_t bns = rclcpp::Duration(b).nanoseconds();
+    const int64_t out =
+        static_cast<int64_t>(static_cast<double>(ans) +
+                             (static_cast<double>(bns - ans) * t));
+    builtin_interfaces::msg::Duration out_msg;
+    out_msg.set__sec(static_cast<int32_t>(out / 1000000000LL));
+    out_msg.set__nanosec(static_cast<uint32_t>(out % 1000000000LL));
+    return out_msg;
+  };
+
+  // 预估容量：每段会产生 scaling_factor 个点（含段起点，不含段终点的重复）
+  if (in_points.size() >= 2) {
+    output_trajectory.reserve((in_points.size() - 1) * scaling_factor + 1);
+  } else {
+    output_trajectory.reserve(in_points.size());
+  }
+
+  if (in_points.size() == 1) {
+    output_trajectory.push_back(in_points.front());
+    return output_trajectory;
+  }
+
+  for (size_t i = 0; i + 1 < in_points.size(); ++i) {
+    const auto &p0 = in_points[i];
+    const auto &p1 = in_points[i + 1];
+
+    // 放入段起点（避免重复：最后统一 push back 末点）
+    output_trajectory.push_back(p0);
+
+    // 插入 scaling_factor-1 个点：t = 1/N, 2/N, ..., (N-1)/N
+    for (uint8_t k = 1; k < scaling_factor; ++k) {
+      const double t =
+          static_cast<double>(k) / static_cast<double>(scaling_factor);
+
+      trajectory_msgs::msg::JointTrajectoryPoint pi;
+      pi.positions = lerp_vec(p0.positions, p1.positions, t);
+
+      // 若两端都有速度/加速度/力矩，则插值；否则留空（避免伪造数据）
+      if (!p0.velocities.empty() && !p1.velocities.empty()) {
+        pi.velocities = lerp_vec(p0.velocities, p1.velocities, t);
+      }
+      if (!p0.accelerations.empty() && !p1.accelerations.empty()) {
+        pi.accelerations = lerp_vec(p0.accelerations, p1.accelerations, t);
+      }
+      if (!p0.effort.empty() && !p1.effort.empty()) {
+        pi.effort = lerp_vec(p0.effort, p1.effort, t);
+      }
+
+      // 时间不缩放，只在相邻点时间戳之间分配
+      pi.time_from_start = lerp_time(p0.time_from_start, p1.time_from_start, t);
+
+      output_trajectory.push_back(std::move(pi));
+    }
+  }
+
+  // 补上最后一个原始点
+  output_trajectory.push_back(in_points.back());
+  return output_trajectory;
+}
+
+
+
 bool ArmPlanNode::ExecutePlan() {
   RCLCPP_INFO(this->get_logger(), "执行运动计划");
 
   if (debug_) {
     RCLCPP_INFO(this->get_logger(), "在虚拟环境中运行");
+    auto pos_vec = DLSS_Trajectory(current_plan_.trajectory, 2);
+    RCLCPP_INFO(this->get_logger(), "开始发送轨迹点，共 %zu 个,插值前为 %zu 个", pos_vec.size(), current_plan_.trajectory.joint_trajectory.points.size());
+    current_plan_.trajectory.joint_trajectory.points = pos_vec;
     bool success = (move_group_->execute(current_plan_) ==
                     moveit::core::MoveItErrorCode::SUCCESS);
 
@@ -277,16 +377,19 @@ bool ArmPlanNode::ExecutePlan() {
     const auto &trajectory = current_plan_.trajectory.joint_trajectory;
     const auto &points = trajectory.points;
 
+    //进行插值
+    auto pos_vector  = DLSS_Trajectory(current_plan_.trajectory, 2);
+
     if (points.empty()) {
       RCLCPP_WARN(this->get_logger(), "规划出的轨迹没有路径点，无法执行。");
       return false;
     }
 
-    RCLCPP_INFO(this->get_logger(), "开始发送轨迹点，共 %zu 个", points.size());
+    RCLCPP_INFO(this->get_logger(), "开始发送轨迹点，共 %zu 个,插值前为 %zu 个", pos_vector.size(), points.size());
     rclcpp::Rate rate(100); // 以 100Hz 的频率检查是否到达下一个时间点
     auto start_time = this->now();
 
-    for (const auto &point : points) {
+    for (const auto &point : pos_vector) {
       // 等待直到当前时间超过该路径点的时间戳
       while (rclcpp::ok() &&
              (this->now() - start_time) < point.time_from_start) {
@@ -333,10 +436,10 @@ bool ArmPlanNode::ExecuteServo(moveit_servo::KinematicState &state) {
   }
 
   auto status = this->servo_->getStatus();
-  if (status != moveit_servo::StatusCode::NO_WARNING && 
-      status != moveit_servo::StatusCode::DECELERATE_FOR_APPROACHING_SINGULARITY &&
-      status != moveit_servo::StatusCode:: DECELERATE_FOR_LEAVING_SINGULARITY
-    ) {
+  if (status != moveit_servo::StatusCode::NO_WARNING &&
+      status !=
+          moveit_servo::StatusCode::DECELERATE_FOR_APPROACHING_SINGULARITY &&
+      status != moveit_servo::StatusCode::DECELERATE_FOR_LEAVING_SINGULARITY) {
     RCLCPP_WARN(this->get_logger(), "Moveit Servo 状态异常，当前状态码: %d",
                 static_cast<int>(status));
     RCLCPP_INFO(this->get_logger(), "pos: [%f, %f, %f, %f, %f, %f]",
@@ -374,8 +477,8 @@ bool ArmPlanNode::ExecuteServo(moveit_servo::KinematicState &state) {
     trajectory_msgs::msg::JointTrajectoryPoint point;
     point.positions.assign(state.positions.begin(), state.positions.end());
     point.velocities.assign(state.velocities.begin(), state.velocities.end());
-    point.time_from_start = rclcpp::Duration::from_seconds(
-        servo_params_.publish_period);
+    point.time_from_start =
+        rclcpp::Duration::from_seconds(servo_params_.publish_period);
     traj.points.push_back(point);
 
     pub_fake_controller_->publish(traj);

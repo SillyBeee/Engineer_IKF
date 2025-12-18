@@ -8,6 +8,7 @@
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_msgs/msg/float32_multi_array.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
+#include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 #include <moveit_servo/servo.hpp>
 #include <moveit_servo/utils/common.hpp>
 #include <moveit_servo/utils/datatypes.hpp>
@@ -32,6 +33,10 @@ public:
 
   bool SolveIK(const geometry_msgs::msg::Pose &target_pose,
                std::vector<double> &joint_pose);
+
+  std::vector<trajectory_msgs::msg::JointTrajectoryPoint>
+  DLSS_Trajectory(moveit_msgs::msg::RobotTrajectory &input_trajectory,
+                  uint8_t scaling_factor);
 
   bool ExecutePlan();
   bool ExecuteServo(moveit_servo::KinematicState &state);
