@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
 
   std::atomic_bool running{true};
   std::thread reader([&]() {
-    rclcpp::WallRate rate(50.0);
+    rclcpp::WallRate rate(100.0);
     const auto lx =
         static_cast<int>(drivers::GamePad::GamePadInput::LEFT_STICK_X);
     const auto ly =
@@ -40,6 +40,10 @@ int main(int argc, char **argv) {
       auto left_y = static_cast<double>(left_y_raw) / 32768.0;
       auto right_x = static_cast<double>(right_x_raw) / 32768.0;
       auto right_y = static_cast<double>(right_y_raw) / 32768.0;
+      left_x = left_x < 0.5 ? 0: left_x;
+      left_y = left_y < 0.5 ? 0: left_y;
+      right_x = right_x < 0.5 ? 0: right_x;
+      right_y = right_y < 0.5 ? 0: right_y;
 
       RCLCPP_INFO_THROTTLE(node->get_logger(), *node->get_clock(), 100,
                            "Left stick: x=%f y=%f , right: x=%f y=%f", left_x, left_y, right_x, right_y);

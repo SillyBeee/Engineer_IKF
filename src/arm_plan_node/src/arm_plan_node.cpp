@@ -378,7 +378,7 @@ bool ArmPlanNode::ExecutePlan() {
     const auto &points = trajectory.points;
 
     //进行插值
-    auto pos_vector  = DLSS_Trajectory(current_plan_.trajectory, 2);
+    auto pos_vector  = DLSS_Trajectory(current_plan_.trajectory, 1);
 
     if (points.empty()) {
       RCLCPP_WARN(this->get_logger(), "规划出的轨迹没有路径点，无法执行。");
