@@ -1,0 +1,7 @@
+float64 sucker_x
+float64 sucker_y
+float64 sucker_z
+float64 rotate_angle
+---
+
+int32 result

@@ -1,0 +1,9 @@
+int32 pixel_x
+int32 pixel_y
+int32 frame_id
+
+---
+int32 result
+float64 base_x
+float64 base_y
+float64 base_z

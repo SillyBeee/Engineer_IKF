@@ -1,0 +1,7 @@
+float64 x
+float64 y
+float64 rotate_angle
+
+---
+
+int32 result
