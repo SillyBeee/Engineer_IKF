@@ -11,8 +11,8 @@
 // Forward declaration of the onMouse function
 
 #define RECORDING  //是否开启图片保存 按下c进行保存
-#define COLOR
-// #define DEPTH
+#define COLOR  //是否开启彩色图输出    单独开启彩色时可以输出1920x1080,同时输出时分辨率与深度图同步
+// #define DEPTH  //是否开启深度图输出
 
 
 void onMouse(int event, int x, int y, int flags, void* userdata) {
@@ -50,6 +50,24 @@ CameraNode::CameraNode(const rclcpp::NodeOptions& options):
             //开启相机
             pipe_ = std::make_shared<ob::Pipeline>();
             RCLCPP_INFO(this->get_logger(), "Device found");
+            //配置曝光
+            auto device = pipe_->getDevice();
+            //关闭自动曝光
+            if (device->isPropertySupported(OB_PROP_COLOR_AUTO_EXPOSURE_BOOL, OB_PERMISSION_WRITE)) {
+                
+                bool enable_auto_exposure = false; 
+                device->setBoolProperty(OB_PROP_COLOR_AUTO_EXPOSURE_BOOL, enable_auto_exposure);
+                RCLCPP_INFO(this->get_logger(), "Set Auto Exposure: %s", enable_auto_exposure ? "ON" : "OFF");
+            }
+            //设置手动曝光值
+            if (!device->getBoolProperty(OB_PROP_COLOR_AUTO_EXPOSURE_BOOL)) {
+                if (device->isPropertySupported(OB_PROP_COLOR_EXPOSURE_INT, OB_PERMISSION_WRITE)) {
+                    int exposure_value = 80; // 【请根据实际画面亮度调整此值】
+                    device->setIntProperty(OB_PROP_COLOR_EXPOSURE_INT, exposure_value);
+                    RCLCPP_INFO(this->get_logger(), "Set Exposure Value: %d", exposure_value);
+                }
+            }
+
             //配置视频流参数
             this->config_ = std::make_shared<ob::Config>();
             #ifdef DEPTH
@@ -57,12 +75,13 @@ CameraNode::CameraNode(const rclcpp::NodeOptions& options):
             #endif
             #ifdef COLOR
             // config_->enableVideoStream(OB_STREAM_COLOR, OB_WIDTH_ANY, OB_HEIGHT_ANY, OB_FPS_ANY, OB_FORMAT_RGB);
-            // config_->enableVideoStream(OB_STREAM_COLOR, 1080, 720, OB_FPS_ANY, OB_FORMAT_RGB);
             config_->enableVideoStream(OB_STREAM_COLOR);
             #endif
 
             config_->setFrameAggregateOutputMode(OB_FRAME_AGGREGATE_OUTPUT_ALL_TYPE_FRAME_REQUIRE);
+            
             #if defined(DEPTH) && defined(COLOR)
+            //彩色与深度均可用的时候进行帧对齐 
             this->color2depthAlign_ = std::make_shared<ob::Align>(OB_STREAM_COLOR);
             #endif
 
@@ -296,14 +315,23 @@ void CameraNode::LoopForPublish() {
             RCLCPP_WARN(this->get_logger(), "Frameset get failed");
             continue;
         }
+        #if defined(DEPTH) && defined(COLOR)
         //对RGB图像和Depth图像进行对齐
-        // auto align_frame = this->color2depthAlign_->process(current_frameset);
-        // this->align_frameset = align_frame->as<ob::FrameSet>();
+        auto align_frame = this->color2depthAlign_->process(current_frameset);
+        this->align_frameset = align_frame->as<ob::FrameSet>();
+        #endif
 
         #ifdef COLOR
         //获取RGB图像
-        // auto colorFrame = align_frameset->colorFrame();
-        auto colorFrame = current_frameset->colorFrame();
+        std::shared_ptr<ob::ColorFrame> colorFrame;
+        if(this->align_frameset!=NULL){
+            colorFrame = align_frameset->colorFrame();
+        }
+        else{
+            colorFrame = current_frameset->colorFrame();
+        }
+
+        
         cv::Mat frame = ConvertColor2Mat(colorFrame);
         // GetPixelDepth(960, 540);
 
