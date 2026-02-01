@@ -5,6 +5,7 @@
 #include <scope_timer.hpp>
 using namespace std;
 
+
 DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
     
@@ -91,12 +92,29 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
 
     auto results = Infer(frame);
     
+    // 定义不同关键点的颜色列表 (BGR 顺序)
+    static const std::vector<cv::Scalar> kpt_colors = {
+        cv::Scalar(255, 0, 0),   // 点 0: 蓝色
+        cv::Scalar(0, 0, 255),   // 点 1: 红色
+        cv::Scalar(0, 255, 255), // 点 2: 黄色
+        cv::Scalar(255, 0, 255)  // 点 3: 紫色
+    };
+
     // 简单绘制
     for(const auto& res : results){
         cv::rectangle(frame, res.box, cv::Scalar(0, 255, 0), 2);
-        for(const auto& kp : res.kpts){
+        
+        // 改用索引遍历，以便区分不同的点
+        for(size_t i = 0; i < res.kpts.size(); ++i){
+            const auto& kp = res.kpts[i];
             if(kp.score > 0.5){
-                cv::circle(frame, cv::Point((int)kp.x, (int)kp.y), 3, cv::Scalar(0, 0, 255), -1);
+                // 根据索引选择颜色，如果点数超过预设颜色则默认绿色
+                cv::Scalar color = (i < kpt_colors.size()) ? kpt_colors[i] : cv::Scalar(0, 255, 0);
+                cv::circle(frame, cv::Point((int)kp.x, (int)kp.y), 4, color, -1);
+                
+                // (可选) 在点旁边绘制索引号，方便确认点的顺序
+                // cv::putText(frame, std::to_string(i), cv::Point((int)kp.x, (int)kp.y), 
+                //             cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
             }
         }
     }
@@ -212,11 +230,12 @@ vector<PoseResult> DetectorNode::Infer(const cv::Mat& src) {
         }
     }
     
-    NMS(candidates, 0.45, 0.5);
+    // NMS(candidates, 0.45, 0.5);
     return candidates;
 }
 
 void DetectorNode::NMS(vector<PoseResult>& results, float conf_thres, float iou_thres) {
+    //YOLO26消除了NMS,不需要NMS后处理了
     vector<int> indices;
     vector<cv::Rect> boxes;
     vector<float> scores;

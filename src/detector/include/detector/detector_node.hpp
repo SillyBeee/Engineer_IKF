@@ -7,8 +7,12 @@
 #include <vector>
 #include <string>
 
-// 定义关键点结构
 
+#define ONNX_MODE   //使用普通onnx进行推理
+// #define OPENVINO_MODE  //使用OpenVINO进行推理
+
+
+// 定义关键点结构
 struct KeyPoint{
     float x;
     float y;
@@ -40,18 +44,20 @@ private:
     // NMS
     void NMS(std::vector<PoseResult>& results, float conf_thres, float iou_thres);
 
+
     // ROS
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_image_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_image_;
 
-    // ORT 变量
+    #ifdef ONNX_MODE
     Ort::Env env_{nullptr};
     Ort::Session session_{nullptr};
     Ort::MemoryInfo allocator_info_{nullptr};
-    
+    #endif
+
+
     std::vector<const char*> input_names_;
     std::vector<const char*> output_names_;
-     float m_widthPad, m_heightPad, m_ratio;   //用于letterbox恢复
 
     // 模型参数
     const int input_shape_width = 640;

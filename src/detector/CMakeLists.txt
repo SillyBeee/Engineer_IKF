@@ -12,6 +12,7 @@ endif()
 # find dependencies
 find_package(OpenCV REQUIRED)
 find_package(ament_cmake_auto REQUIRED)
+find_package(OpenVINO REQUIRED)
 ament_auto_find_build_dependencies()
 
 set(ONNXRUNTIME_DIR "/opt/onnxruntime")
@@ -30,6 +31,7 @@ add_compile_definitions(PKG_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBRARIES}
   ${ONNXRUNTIME_LIB}
+  openvino::runtime
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
