@@ -2,12 +2,13 @@
 #include <rclcpp_components/register_node_macro.hpp>
 #include <algorithm>
 #include <filesystem>
+#include <scope_timer.hpp>
 using namespace std;
 
 DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
     
-    this->declare_parameter("model_path", "model/best.onnx");
+    this->declare_parameter("model_path", "model/best_s.onnx");
     string model_path = this->get_parameter("model_path").as_string();
 
     RCLCPP_INFO(this->get_logger(), "Loading ONNX model: %s", model_path.c_str());
@@ -77,7 +78,7 @@ void DetectorNode::InitModel(const string& model_path) {
 }
 
 void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "Received image");
+    // RCLCPP_INFO(this->get_logger(), "Received image");
     cv::Mat frame;
     try {
         frame = cv_bridge::toCvCopy(msg, "bgr8")->image;
@@ -126,6 +127,7 @@ void DetectorNode::PreProcess(const cv::Mat& src, cv::Mat& blob, float& ratio, i
 }
 
 vector<PoseResult> DetectorNode::Infer(const cv::Mat& src) {
+    MEASURE_TIME();
     if(!session_) return {};
 
     cv::Mat blob;

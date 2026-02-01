@@ -19,6 +19,8 @@ set(ONNXRUNTIME_LIB ${ONNXRUNTIME_DIR}/lib/libonnxruntime.so)
 include_directories(${ONNXRUNTIME_DIR}/include)
 link_directories(${ONNXRUNTIME_DIR}/lib)
 
+include_directories(${CMAKE_SOURCE_DIR}/../utils)
+
 ament_auto_add_library(${PROJECT_NAME} SHARED
   DIRECTORY src
 )
