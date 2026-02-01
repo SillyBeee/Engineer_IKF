@@ -18,7 +18,7 @@
 #include <functional>
 
 /**
- *  Frame classis inheritance hierarchy：
+ *  Frame classis inheritance hierarchy:
  *         Frame
  *          |
  *      +-----------+----------+----------+-----------+
@@ -181,7 +181,7 @@ public:
 
     /**
      * @brief Get the global timestamp of the frame in microseconds.
-     * @brief The global timestamp is the time point when the frame was was captured by the device, and has been converted to the host clock domain. The
+     * @brief The global timestamp is the time point when the frame was captured by the device, and has been converted to the host clock domain. The
      * conversion process base on the device timestamp and can eliminate the timer drift of the device
      *
      * @attention The global timestamp disable by default. If global timestamp is not enabled, the function will return 0. To enable the global timestamp,
@@ -554,6 +554,28 @@ public:
 };
 
 /**
+ * @brief Define the ConfidenceFrame class, which inherits from the VideoFrame class
+ *
+ */
+class ConfidenceFrame : public VideoFrame {
+
+public:
+    /**
+     * @brief Construct a new ConfidenceFrame object with a given pointer to the internal frame object.
+     *
+     * @attention After calling this constructor, the frame object will own the internal frame object, and the internal frame object will be deleted when the
+     * frame object is destroyed.
+     * @attention The internal frame object should not be deleted by the caller.
+     * @attention Please use the FrameFactory to create a Frame object.
+     *
+     * @param impl The pointer to the internal frame object.
+     */
+    explicit ConfidenceFrame(const ob_frame *impl) : VideoFrame(impl) {};
+
+    ~ConfidenceFrame() noexcept override = default;
+};
+
+/**
  * @brief Define the PointsFrame class, which inherits from the Frame class
  * @brief The PointsFrame class is used to obtain pointcloud data and point cloud information.
  *
@@ -591,6 +613,33 @@ public:
         Error::handle(&error);
 
         return scale;
+    }
+
+    /**
+     * @brief Get the width of the frame.
+     *
+     * @return uint32_t The width of the frame.
+     */
+    uint32_t getWidth() const {
+        ob_error *error = nullptr;
+        // TODO
+        auto width = ob_point_cloud_frame_get_width(impl_, &error);
+        Error::handle(&error);
+
+        return width;
+    }
+
+    /**
+     * @brief Get the height of the frame.
+     *
+     * @return uint32_t The height of the frame.
+     */
+    uint32_t getHeight() const {
+        ob_error *error  = nullptr;
+        auto      height = ob_point_cloud_frame_get_height(impl_, &error);
+        Error::handle(&error);
+
+        return height;
     }
 
 public:
@@ -902,11 +951,11 @@ public:
      * @attention The buffer is owned by the caller, and will not be destroyed by the frame object. The user should ensure that the buffer is valid and not
      * modified.
      *
-     * @param[in] frame_type Frame object type.
+     * @param[in] frameType Frame object type.
      * @param[in] format Frame object format.
      * @param[in] buffer Frame object buffer.
-     * @param[in] buffer_size Frame object buffer size.
      * @param[in] destroyCallback Destroy callback, will be called when the frame object is destroyed.
+     * @param[in] bufferSize Frame object buffer size.
      *
      * @return std::shared_ptr<Frame> The created frame object.
      */
@@ -950,6 +999,22 @@ public:
         return frame->as<VideoFrame>();
     }
 
+    /**
+     * @brief Create a new FrameSet object.
+     *
+     * This function creates a new FrameSet instance by internally calling the native C API.
+     * The returned FrameSet is managed by a std::shared_ptr, and its lifetime will be
+     * automatically managed. When no references remain, the underlying native resources will be released.
+     *
+     * @return std::shared_ptr<FrameSet> The created FrameSet object.
+     */
+    static std::shared_ptr<FrameSet> createFrameSet() {
+        ob_error *error = nullptr;
+        auto      impl  = ob_create_frameset(&error);
+        Error::handle(&error);
+        return std::make_shared<FrameSet>(impl);
+    }
+
 private:
     struct BufferDestroyContext {
         BufferDestroyCallback callback;
@@ -957,7 +1022,7 @@ private:
 
     static void BufferDestroy(uint8_t *buffer, void *context) {
         auto *ctx = static_cast<BufferDestroyContext *>(context);
-        if (ctx->callback) {
+        if(ctx->callback) {
             ctx->callback(buffer);
         }
         delete ctx;
@@ -1009,6 +1074,8 @@ template <typename T> bool Frame::is() const {
         return (typeid(T) == typeid(DepthFrame) || typeid(T) == typeid(VideoFrame));
     case OB_FRAME_COLOR:
         return (typeid(T) == typeid(ColorFrame) || typeid(T) == typeid(VideoFrame));
+    case OB_FRAME_CONFIDENCE:
+        return (typeid(T) == typeid(ConfidenceFrame) || typeid(T) == typeid(VideoFrame));
     case OB_FRAME_GYRO:
         return (typeid(T) == typeid(GyroFrame));
     case OB_FRAME_ACCEL:

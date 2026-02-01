@@ -112,8 +112,9 @@ public:
      *      OB_SENSOR_IR,
      *      OB_SENSOR_IR_LEFT,
      *      OB_SENSOR_IR_RIGHT,
+     *      OB_SENSOR_CONFIDENCE,
      *
-     * @param type
+     * @param type The sensor type
      * @return true
      * @return false
      */
@@ -128,9 +129,10 @@ public:
      *      OB_STREAM_VIDEO,
      *      OB_STREAM_DEPTH,
      *      OB_STREAM_COLOR,
-     *      OB_STREAM_IR，
+     *      OB_STREAM_IR,
      *      OB_STREAM_IR_LEFT,
      *      OB_STREAM_IR_RIGHT,
+     *      OB_STREAM_CONFIDENCE,
      *
      * @param type The stream type to check.
      * @return true if the given stream type is a video stream, false otherwise.

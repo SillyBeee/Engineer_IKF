@@ -9,7 +9,7 @@
 
 
 #define ONNX_MODE   //使用普通onnx进行推理
-// #define OPENVINO_MODE  //使用OpenVINO进行推理
+
 
 
 // 定义关键点结构

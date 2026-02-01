@@ -68,7 +68,6 @@ public:
     // destroyWindow
     void destroyWindow();
 
-    cv::Mat visualize(std::shared_ptr<const ob::Frame> frame);
 private:
     // frames processing thread function
     void processFrames();
@@ -77,7 +76,7 @@ private:
     void arrangeFrames();
 
     // add info to mat
-    
+    cv::Mat visualize(std::shared_ptr<const ob::Frame> frame);
 
     // draw info to mat
     void drawInfo(cv::Mat &imageMat, std::shared_ptr<const ob::VideoFrame> &frame);

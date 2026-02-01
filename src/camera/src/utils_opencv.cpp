@@ -131,11 +131,12 @@ void CVWindow::close() {
 }
 
 void CVWindow::destroyWindow() {
-    if(!isWindowDestroyed_){
+    if(!isWindowDestroyed_) {
         cv::destroyWindow(name_);
         cv::waitKey(1);
         isWindowDestroyed_ = true;
-    }else{
+    }
+    else {
         std::cout << "CVWindows has been destroyed!" << std::endl;
     }
 }
@@ -266,7 +267,7 @@ void CVWindow::arrangeFrames() {
         }
         else if(arrangeMode_ == ARRANGE_ONE_ROW) {
             for(auto &item: matGroups_) {
-                auto &  mat       = item.second.second;
+                auto   &mat       = item.second.second;
                 cv::Mat resizeMat = resizeMatKeepAspectRatio(mat, static_cast<int>(width_ / matGroups_.size()), height_);
                 if(renderMat.dims > 0 && renderMat.cols > 0 && renderMat.rows > 0) {
                     cv::hconcat(renderMat, resizeMat, renderMat);
@@ -278,7 +279,7 @@ void CVWindow::arrangeFrames() {
         }
         else if(arrangeMode_ == ARRANGE_ONE_COLUMN) {
             for(auto &item: matGroups_) {
-                auto &  mat       = item.second.second;
+                auto   &mat       = item.second.second;
                 cv::Mat resizeMat = resizeMatKeepAspectRatio(mat, width_, static_cast<int>(height_ / matGroups_.size()));
                 if(renderMat.dims > 0 && renderMat.cols > 0 && renderMat.rows > 0) {
                     cv::vconcat(renderMat, resizeMat, renderMat);
@@ -386,6 +387,10 @@ cv::Mat CVWindow::visualize(std::shared_ptr<const ob::Frame> frame) {
             cv::Mat rawMat(videoFrame->getHeight(), videoFrame->getWidth(), CV_8UC2, videoFrame->getData());
             cv::cvtColor(rawMat, rstMat, cv::COLOR_YUV2BGR_YUY2);
         } break;
+        case OB_FORMAT_BGR: {
+            cv::Mat rawMat(videoFrame->getHeight(), videoFrame->getWidth(), CV_8UC3, videoFrame->getData());
+            cv::cvtColor(rawMat, rstMat, cv::COLOR_BGR2RGB);
+        } break;
         case OB_FORMAT_RGB: {
             cv::Mat rawMat(videoFrame->getHeight(), videoFrame->getWidth(), CV_8UC3, videoFrame->getData());
             cv::cvtColor(rawMat, rstMat, cv::COLOR_RGB2BGR);
@@ -396,7 +401,7 @@ cv::Mat CVWindow::visualize(std::shared_ptr<const ob::Frame> frame) {
         } break;
         case OB_FORMAT_BGRA: {
             cv::Mat rawMat(videoFrame->getHeight(), videoFrame->getWidth(), CV_8UC4, videoFrame->getData());
-            cv::cvtColor(rawMat, rstMat, cv::COLOR_BGRA2BGR);
+            cv::cvtColor(rawMat, rstMat, cv::COLOR_BGRA2RGB);
         } break;
         case OB_FORMAT_UYVY: {
             cv::Mat rawMat(videoFrame->getHeight(), videoFrame->getWidth(), CV_8UC2, videoFrame->getData());
@@ -405,6 +410,16 @@ cv::Mat CVWindow::visualize(std::shared_ptr<const ob::Frame> frame) {
         case OB_FORMAT_I420: {
             cv::Mat rawMat(videoFrame->getHeight() * 3 / 2, videoFrame->getWidth(), CV_8UC1, videoFrame->getData());
             cv::cvtColor(rawMat, rstMat, cv::COLOR_YUV2BGR_I420);
+        } break;
+        case OB_FORMAT_Y8: {
+            cv::Mat rawMat(videoFrame->getHeight(), videoFrame->getWidth(), CV_8UC1, videoFrame->getData());
+            cv::cvtColor(rawMat, rstMat, cv::COLOR_GRAY2BGR);
+        } break;
+        case OB_FORMAT_Y16: {
+            cv::Mat rawMat(videoFrame->getHeight(), videoFrame->getWidth(), CV_16UC1, videoFrame->getData());
+            cv::Mat gray8;
+            rawMat.convertTo(gray8, CV_8UC1, 255.0 / 65535.0);
+            cv::cvtColor(gray8, rstMat, cv::COLOR_GRAY2BGR);
         } break;
         default:
             break;
@@ -415,7 +430,7 @@ cv::Mat CVWindow::visualize(std::shared_ptr<const ob::Frame> frame) {
     }
     else if(frame->getType() == OB_FRAME_DEPTH) {
         auto videoFrame = frame->as<const ob::VideoFrame>();
-        if(videoFrame->getFormat() == OB_FORMAT_Y16 || videoFrame->getFormat() == OB_FORMAT_Z16) {
+        if(videoFrame->getFormat() == OB_FORMAT_Y16 || videoFrame->getFormat() == OB_FORMAT_Z16 || videoFrame->getFormat() == OB_FORMAT_Y12C4) {
             cv::Mat rawMat = cv::Mat(videoFrame->getHeight(), videoFrame->getWidth(), CV_16UC1, videoFrame->getData());
             // depth frame pixel value multiply scale to get distance in millimeter
             float scale = videoFrame->as<ob::DepthFrame>()->getValueScale();
@@ -458,35 +473,48 @@ cv::Mat CVWindow::visualize(std::shared_ptr<const ob::Frame> frame) {
             drawInfo(rstMat, videoFrame);
         }
     }
+    else if(frame->getType() == OB_FRAME_CONFIDENCE) {
+        auto videoFrame = frame->as<const ob::VideoFrame>();
+        if(videoFrame->getFormat() == OB_FORMAT_Y16) {
+            cv::Mat cvtMat;
+            cv::Mat rawMat = cv::Mat(videoFrame->getHeight(), videoFrame->getWidth(), CV_16UC1, videoFrame->getData());
+            rawMat.convertTo(cvtMat, CV_8UC1, 1.0 / 16.0f);
+            cv::cvtColor(cvtMat, rstMat, cv::COLOR_GRAY2RGB);
+        }
+        else if(videoFrame->getFormat() == OB_FORMAT_Y8) {
+            cv::Mat rawMat = cv::Mat(videoFrame->getHeight(), videoFrame->getWidth(), CV_8UC1, videoFrame->getData());
+            cv::cvtColor(rawMat, rstMat, cv::COLOR_GRAY2RGB);
+        }
+    }
     else if(frame->getType() == OB_FRAME_ACCEL) {
-        rstMat                 = cv::Mat::zeros(320, 240, CV_8UC3);
+        rstMat                 = cv::Mat::zeros(320, 300, CV_8UC3);
         auto        accelFrame = frame->as<ob::AccelFrame>();
         auto        value      = accelFrame->getValue();
         std::string str        = "Accel:";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 60), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 60), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" timestamp=") + std::to_string(accelFrame->getTimeStampUs()) + "us";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 100), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 100), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" x=") + std::to_string(value.x) + "m/s^2";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 140), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 140), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" y=") + std::to_string(value.y) + "m/s^2";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 180), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 180), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" z=") + std::to_string(value.z) + "m/s^2";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 220), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 220), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
     }
     else if(frame->getType() == OB_FRAME_GYRO) {
-        rstMat                = cv::Mat::zeros(320, 240, CV_8UC3);
+        rstMat                = cv::Mat::zeros(320, 300, CV_8UC3);
         auto        gyroFrame = frame->as<ob::GyroFrame>();
         auto        value     = gyroFrame->getValue();
         std::string str       = "Gyro:";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 60), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 60), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" timestamp=") + std::to_string(gyroFrame->getTimeStampUs()) + "us";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 100), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 100), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" x=") + std::to_string(value.x) + "rad/s";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 140), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 140), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" y=") + std::to_string(value.y) + "rad/s";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 180), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 180), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
         str = std::string(" z=") + std::to_string(value.z) + "rad/s";
-        cv::putText(rstMat, str.c_str(), cv::Point(8, 220), cv::FONT_HERSHEY_DUPLEX, 0.6, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+        cv::putText(rstMat, str.c_str(), cv::Point(8, 220), cv::FONT_HERSHEY_DUPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
     }
     return rstMat;
 }
@@ -534,8 +562,8 @@ void CVWindow::drawInfo(cv::Mat &imageMat, std::shared_ptr<const ob::VideoFrame>
     }
 
     // Timestamp information with background
-    putTextWithBackground("frame timestamp(ms):  " + std::to_string(frame->getTimeStampUs()), cv::Point(8, 40));
-    putTextWithBackground("system timestamp(ms): " + std::to_string(frame->getSystemTimeStampUs()), cv::Point(8, 64));
+    putTextWithBackground("frame timestamp(us):  " + std::to_string(frame->getTimeStampUs()), cv::Point(8, 40));
+    putTextWithBackground("system timestamp(us): " + std::to_string(frame->getSystemTimeStampUs()), cv::Point(8, 64));
 }
 
 cv::Mat CVWindow::resizeMatKeepAspectRatio(const cv::Mat &mat, int width, int height) {

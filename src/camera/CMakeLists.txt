@@ -38,6 +38,17 @@ ament_auto_find_build_dependencies()
 ament_auto_add_library(${PROJECT_NAME} SHARED
     DIRECTORY src
 )
+
+# --- 新增内容：安装三方库到 install/camera/lib 目录下 ---
+install(FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/orbbecsdk/lib/libOrbbecSDK.so
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/orbbecsdk/lib/libOrbbecSDK.so.2
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/orbbecsdk/lib/libOrbbecSDK.so.2.5.5
+    DESTINATION lib
+)
+
+
+
 # target_compile_definitions(${PROJECT_NAME} PRIVATE
 #     PKG_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR})
 add_compile_definitions(PKG_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")

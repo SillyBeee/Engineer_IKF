@@ -64,6 +64,20 @@ OB_EXPORT ob_device_list *ob_query_device_list(ob_context *context, ob_error **e
 OB_EXPORT void ob_enable_net_device_enumeration(ob_context *context, bool enable, ob_error **error);
 
 /**
+ * @brief "Force" a static IP address configuration in a device identified by its MAC Address.
+ *
+ * @param[in] macAddress MAC address of the network device.
+ *                       You can obtain it from @ref DeviceList::uid(), or specify it manually
+ *                       in the format xx:xx:xx:xx:xx:xx, where each xx is a two-digit hexadecimal value.
+ * @param[in] config The new IP configuration.
+ * @param[out] error Pointer to an error object that will be populated if an error occurs.
+ * @return bool true if the configuration command was processed successfully, false otherwise.
+ *
+ * @note This applies to all Orbbec GigE Vision devices
+ */
+OB_EXPORT bool ob_force_ip_config(const char *deviceUid, ob_net_ip_config config, ob_error **error);
+
+/**
  * @brief Create a network device object
  *
  * @param[in] context Pointer to the context object
@@ -104,7 +118,7 @@ OB_EXPORT void ob_enable_device_clock_sync(ob_context *context, uint64_t repeat_
 OB_EXPORT void ob_free_idle_memory(ob_context *context, ob_error **error);
 
 /**
- * @brief For linux, there are two ways to enable the UVC backend: libuvc and libusb. This function is used to set the backend type.
+ * @brief For linux, there are two ways to enable the UVC backend: libuvc and v4l2. This function is used to set the backend type.
  * @brief It is effective when the new device is created.
  *
  * @attention This interface is only available for Linux.
@@ -155,11 +169,11 @@ OB_EXPORT void ob_set_logger_to_console(ob_log_severity severity, ob_error **err
 
 /**
  * @brief Set the extensions directory
- * @brief The extensions directory is used to search for dynamic libraries that provide additional functionality to the SDK， such as the Frame filters.
+ * @brief The extensions directory is used to search for dynamic libraries that provide additional functionality to the SDK, such as the Frame filters.
  *
  * @attention Should be called before creating the context and pipeline, otherwise the default extensions directory (./extensions) will be used.
  *
- * @param directory Path to the extensions directory. If the path is empty, the existing settings will continue to be used (if the existing
+ * @param directory Path to the extensions directory. If the path is empty, extensions path will be set to the current working directory.
  * @param error Pointer to an error object that will be populated if an error occurs during extensions directory setting
  */
 OB_EXPORT void ob_set_extensions_directory(const char *directory, ob_error **error);

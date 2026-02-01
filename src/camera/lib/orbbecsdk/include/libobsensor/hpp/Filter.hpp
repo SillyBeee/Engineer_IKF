@@ -311,7 +311,7 @@ public:
      * @brief Some private filters require an activation key to be activated, its depends on the vendor of the filter.
      *
      * @param name The name of the filter.
-     * @param activation_key The activation key of the filter.
+     * @param activationKey The activation key of the filter.
      */
     static std::shared_ptr<Filter> createPrivateFilter(const std::string &name, const std::string &activationKey) {
         ob_error *error = nullptr;
@@ -347,12 +347,12 @@ public:
         init(impl);
     }
 
-    virtual ~PointCloudFilter() noexcept = default;
+    virtual ~PointCloudFilter() noexcept override = default;
 
     /**
      * @brief Set the output pointcloud frame format.
      *
-     * @param type The point cloud frame format: OB_FORMAT_POINT or OB_FORMAT_RGB_POINT
+     * @param format The point cloud frame format: OB_FORMAT_POINT or OB_FORMAT_RGB_POINT
      */
     void setCreatePointFormat(OBFormat format) {
         setConfigValue("pointFormat", static_cast<double>(format));
@@ -421,7 +421,7 @@ public:
         setConfigValue("AlignType", static_cast<double>(alignToStreamType));
     }
 
-    virtual ~Align() noexcept = default;
+    virtual ~Align() noexcept override = default;
 
     OBStreamType getAlignToStreamType() {
         return static_cast<OBStreamType>(static_cast<int>(getConfigValue("AlignType")));
@@ -466,7 +466,7 @@ public:
         init(impl);
     }
 
-    virtual ~FormatConvertFilter() noexcept = default;
+    virtual ~FormatConvertFilter() noexcept override = default;
 
     /**
      * @brief Set the format conversion type.
@@ -492,7 +492,7 @@ public:
         init(impl);
     }
 
-    virtual ~HdrMerge() noexcept = default;
+    virtual ~HdrMerge() noexcept override = default;
 };
 
 /**
@@ -524,7 +524,7 @@ public:
         initSequenceIdList();
     }
 
-    virtual ~SequenceIdFilter() noexcept {
+    virtual ~SequenceIdFilter() noexcept override {
         if(outputSequenceIdList_) {
             delete[] outputSequenceIdList_;
             outputSequenceIdList_ = nullptr;
@@ -534,7 +534,7 @@ public:
     /**
      * @brief Set the sequenceId filter params.
      *
-     * @param sequence id to pass the filter.
+     * @param sequence_id id to pass the filter.
      */
     void selectSequenceId(int sequence_id) {
         setConfigValue("sequenceid", static_cast<double>(sequence_id));
@@ -575,12 +575,12 @@ public:
         init(impl);
     }
 
-    virtual ~DecimationFilter() noexcept = default;
+    virtual ~DecimationFilter() noexcept override = default;
 
     /**
      * @brief Set the decimation filter scale value.
      *
-     * @param type The decimation filter scale value.
+     * @param value The decimation filter scale value.
      */
     void setScaleValue(uint8_t value) {
         setConfigValue("decimate", static_cast<double>(value));
@@ -619,7 +619,7 @@ public:
         init(impl);
     }
 
-    virtual ~ThresholdFilter() noexcept = default;
+    virtual ~ThresholdFilter() noexcept override = default;
 
     /**
      * @brief Get the threshold filter min range.
@@ -682,7 +682,7 @@ public:
         init(impl);
     }
 
-    virtual ~SpatialAdvancedFilter() noexcept = default;
+    virtual ~SpatialAdvancedFilter() noexcept override = default;
 
     /**
      * @brief Get the spatial advanced filter alpha range.
@@ -780,6 +780,150 @@ public:
 };
 
 /**
+ * @brief The Spatial Fast Filter utilizes an enhanced median smoothing algorithm,
+ * designed to significantly reduce CPU usage and optimize processing efficiency.
+ */
+class SpatialFastFilter : public Filter {
+public:
+    SpatialFastFilter(const std::string &activationKey = "") {
+        ob_error *error = nullptr;
+        auto      impl  = ob_create_private_filter("SpatialFastFilter", activationKey.c_str(), &error);
+        Error::handle(&error);
+        init(impl);
+    }
+
+    virtual ~SpatialFastFilter() noexcept override = default;
+
+    /**
+     * @brief Get the spatial fast filter radius range.
+     *
+     * @return OBIntPropertyRange the radius value of property range.
+     */
+    OBIntPropertyRange getRadiusRange() {
+        OBIntPropertyRange range{};
+        const auto        &schemaVec = getConfigSchemaVec();
+        for(const auto &item: schemaVec) {
+            if(strcmp(item.name, "radius") == 0) {
+                range = getPropertyRange<OBIntPropertyRange>(item, getConfigValue("radius"));
+                break;
+            }
+        }
+        return range;
+    }
+
+    /**
+     * @brief Get the spatial fast filter params.
+     *
+     * @return OBSpatialFastFilterParams
+     */
+    OBSpatialFastFilterParams getFilterParams() {
+        OBSpatialFastFilterParams params{};
+        params.radius = static_cast<uint8_t>(getConfigValue("radius"));
+        return params;
+    }
+
+    /**
+     * @brief Set the spatial fast filter params.
+     *
+     * @param params OBSpatialFastFilterParams.
+     */
+    void setFilterParams(OBSpatialFastFilterParams params) {
+        setConfigValue("radius", params.radius);
+    }
+};
+
+/**
+ * @brief The Spatial Moderate Filter utilizes an optimized average smoothing algorithm,
+ * to achieve a balance between processing speed and the quality of smoothing achieved.
+ */
+class SpatialModerateFilter : public Filter {
+public:
+    SpatialModerateFilter(const std::string &activationKey = "") {
+        ob_error *error = nullptr;
+        auto      impl  = ob_create_private_filter("SpatialModerateFilter", activationKey.c_str(), &error);
+        Error::handle(&error);
+        init(impl);
+    }
+
+    virtual ~SpatialModerateFilter() noexcept override = default;
+
+    /**
+     * @brief Get the spatial moderate filter magnitude range.
+     *
+     * @return OBIntPropertyRange the magnitude value of property range.
+     */
+    OBIntPropertyRange getMagnitudeRange() {
+        OBIntPropertyRange range{};
+        const auto        &schemaVec = getConfigSchemaVec();
+        for(const auto &item: schemaVec) {
+            if(strcmp(item.name, "magnitude") == 0) {
+                range = getPropertyRange<OBIntPropertyRange>(item, getConfigValue("magnitude"));
+                break;
+            }
+        }
+        return range;
+    }
+
+    /**
+     * @brief Get the spatial moderate filter radius range.
+     *
+     * @return OBIntPropertyRange the radius value of property range.
+     */
+    OBIntPropertyRange getRadiusRange() {
+        OBIntPropertyRange range{};
+        const auto        &schemaVec = getConfigSchemaVec();
+        for(const auto &item: schemaVec) {
+            if(strcmp(item.name, "radius") == 0) {
+                range = getPropertyRange<OBIntPropertyRange>(item, getConfigValue("radius"));
+                break;
+            }
+        }
+        return range;
+    }
+
+    /**
+     * @brief Get the spatial moderate filter disp diff range.
+     *
+     * @return OBIntPropertyRange the disp diff value of property range.
+     */
+    OBIntPropertyRange getDispDiffRange() {
+        OBIntPropertyRange range{};
+        const auto        &schemaVec = getConfigSchemaVec();
+        for(const auto &item: schemaVec) {
+            if(strcmp(item.name, "disp_diff") == 0) {
+                range = getPropertyRange<OBIntPropertyRange>(item, getConfigValue("disp_diff"));
+                break;
+            }
+        }
+        return range;
+    }
+
+    /**
+     * @brief Get the spatial moderate filter params.
+     *
+     * @return OBSpatialModerateFilterParams
+     */
+    OBSpatialModerateFilterParams getFilterParams() {
+        OBSpatialModerateFilterParams params{};
+        params.magnitude = static_cast<uint8_t>(getConfigValue("magnitude"));
+        params.radius    = static_cast<uint8_t>(getConfigValue("radius"));
+        params.disp_diff = static_cast<uint16_t>(getConfigValue("disp_diff"));
+        return params;
+    }
+
+    /**
+     * @brief Set the spatial moderate filter params.
+     *
+     * @param params OBSpatialModerateFilterParams.
+     */
+    void setFilterParams(OBSpatialModerateFilterParams params) {
+        setConfigValue("magnitude", params.magnitude);
+        setConfigValue("radius", params.radius);
+        setConfigValue("disp_diff", params.disp_diff);
+    }
+};
+
+/**
  * @brief Hole filling filter,the processing performed depends on the selected hole filling mode.
  */
 class HoleFillingFilter : public Filter {
@@ -791,12 +935,11 @@ public:
         init(impl);
     }
 
-    ~HoleFillingFilter() noexcept = default;
+    ~HoleFillingFilter() noexcept override = default;
 
     /**
      * @brief Set the HoleFillingFilter mode.
      *
-     * @param[in] filter A holefilling_filter object.
      * @param mode OBHoleFillingMode, OB_HOLE_FILL_TOP,OB_HOLE_FILL_NEAREST or OB_HOLE_FILL_FAREST.
      */
     void setFilterMode(OBHoleFillingMode mode) {
@@ -825,12 +968,12 @@ public:
         init(impl);
     }
 
-    ~NoiseRemovalFilter() noexcept = default;
+    ~NoiseRemovalFilter() noexcept override = default;
 
     /**
      * @brief Set the noise removal filter params.
      *
-     * @param[in] params ob_noise_removal_filter_params.
+     * @param[in] filterParams ob_noise_removal_filter_params.
      */
     void setFilterParams(OBNoiseRemovalFilterParams filterParams) {
         setConfigValue("max_size", static_cast<double>(filterParams.max_size));
@@ -896,7 +1039,7 @@ public:
         init(impl);
     }
 
-    ~TemporalFilter() noexcept = default;
+    ~TemporalFilter() noexcept override = default;
 
     /**
      * @brief Get the TemporalFilter diffscale range.
@@ -963,7 +1106,7 @@ public:
         init(impl);
     }
 
-    ~DisparityTransform() noexcept = default;
+    ~DisparityTransform() noexcept override = default;
 };
 
 class OBFilterList {
@@ -1012,24 +1155,33 @@ public:
 };
 
 /**
- * @brief Define the Filter type map
+ * @brief Returns the mapping of filter type names to their corresponding type_index.
  */
-static const std::unordered_map<std::string, std::type_index> obFilterTypeMap = {
-    { "PointCloudFilter", typeid(PointCloudFilter) },   { "Align", typeid(Align) },
-    { "FormatConverter", typeid(FormatConvertFilter) }, { "HDRMerge", typeid(HdrMerge) },
-    { "SequenceIdFilter", typeid(SequenceIdFilter) },   { "DecimationFilter", typeid(DecimationFilter) },
-    { "ThresholdFilter", typeid(ThresholdFilter) },     { "SpatialAdvancedFilter", typeid(SpatialAdvancedFilter) },
-    { "HoleFillingFilter", typeid(HoleFillingFilter) }, { "NoiseRemovalFilter", typeid(NoiseRemovalFilter) },
-    { "TemporalFilter", typeid(TemporalFilter) },       { "DisparityTransform", typeid(DisparityTransform) }
-};
+inline const std::unordered_map<std::string, std::type_index> &getFilterTypeMap() {
+    static const std::unordered_map<std::string, std::type_index> filterTypeMap = {
+        { "PointCloudFilter", typeid(PointCloudFilter) },   { "Align", typeid(Align) },
+        { "FormatConverter", typeid(FormatConvertFilter) }, { "HDRMerge", typeid(HdrMerge) },
+        { "SequenceIdFilter", typeid(SequenceIdFilter) },   { "DecimationFilter", typeid(DecimationFilter) },
+        { "ThresholdFilter", typeid(ThresholdFilter) },     { "SpatialAdvancedFilter", typeid(SpatialAdvancedFilter) },
+        { "HoleFillingFilter", typeid(HoleFillingFilter) }, { "NoiseRemovalFilter", typeid(NoiseRemovalFilter) },
+        { "TemporalFilter", typeid(TemporalFilter) },       { "DisparityTransform", typeid(DisparityTransform) },
+        { "SpatialFastFilter", typeid(SpatialFastFilter) }, { "SpatialModerateFilter", typeid(SpatialModerateFilter) },
+    };
+    return filterTypeMap;
+}
 
 /**
  * @brief Define the is() template function for the Filter class
+ *
+ * @note When adding a new filter class, ensure the filter type map
+ *       (see getFilterTypeMap()) is updated accordingly to maintain correct type matching.
  */
 template <typename T> bool Filter::is() {
     std::string name = type();
-    auto        it   = obFilterTypeMap.find(name);
-    if(it != obFilterTypeMap.end()) {
+
+    const auto &filterTypeMap = getFilterTypeMap();
+    auto        it            = filterTypeMap.find(name);
+    if(it != filterTypeMap.end()) {
         return std::type_index(typeid(T)) == it->second;
     }
     return false;

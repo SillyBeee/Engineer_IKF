@@ -306,7 +306,7 @@ typedef enum {
     OB_PROP_DEPTH_ROTATE_INT = 118,
 
     /**
-     * @brief Get hardware laser power actual level which real state of laser element. OB_PROP_LASER_POWER_LEVEL_CONTROL_INT99）will effect this command
+     * @brief Get hardware laser power actual level which real state of laser element. OB_PROP_LASER_POWER_LEVEL_CONTROL_INT99 will effect this command
      * which it setting and changed the hardware laser energy level.
      */
     OB_PROP_LASER_POWER_ACTUAL_LEVEL_INT = 119,
@@ -502,6 +502,56 @@ typedef enum {
      */
     OB_PROP_HW_NOISE_REMOVE_FILTER_THRESHOLD_FLOAT = 212,
     /**
+     * @brief soft trigger auto capture enable, use in OB_MULTI_DEVICE_SYNC_MODE_SOFTWARE_TRIGGERING mode
+     */
+    OB_DEVICE_AUTO_CAPTURE_ENABLE_BOOL = 216,
+    /**
+     * @brief soft trigger auto capture interval time, use in OB_MULTI_DEVICE_SYNC_MODE_SOFTWARE_TRIGGERING mode
+     */
+    OB_DEVICE_AUTO_CAPTURE_INTERVAL_TIME_INT = 217,
+
+    /**
+     * @brief PTP time synchronization enable
+     */
+    OB_DEVICE_PTP_CLOCK_SYNC_ENABLE_BOOL = 223,
+
+    /**
+     * @brief Depth with confidence stream enable
+     */
+    OB_PROP_DEPTH_WITH_CONFIDENCE_STREAM_ENABLE_BOOL = 224,
+
+    /**
+     * @brief Enable or disable confidence stream filter
+     */
+    OB_PROP_CONFIDENCE_STREAM_FILTER_BOOL = 226,
+
+    /**
+     * @brief Confidence stream filter threshold, range [0, 255]
+     */
+    OB_PROP_CONFIDENCE_STREAM_FILTER_THRESHOLD_INT = 227,
+
+    /**
+     * @brief Confidence stream mirror enable
+     */
+    OB_PROP_CONFIDENCE_MIRROR_BOOL = 229,
+
+    /**
+     * @brief Confidence stream flip enable
+     */
+    OB_PROP_CONFIDENCE_FLIP_BOOL = 230,
+
+    /**
+     * @brief Confidence stream rotate angle{0, 90, 180, 270}
+     */
+    OB_PROP_CONFIDENCE_ROTATE_INT = 231,
+
+    /**
+     * @brief Intra-camera Sync Reference based on the exposure start time, the exposure middle time, or the exposure end time. the definition in @ref
+     * OBIntraCameraSyncReference
+     */
+    OB_PROP_INTRA_CAMERA_SYNC_REFERENCE_INT = 236,
+
+    /**
      * @brief Baseline calibration parameters
      */
     OB_STRUCT_BASELINE_CALIBRATION_PARAM = 1002,
@@ -553,7 +603,7 @@ typedef enum {
 
     /**
      * @brief Device network static ip config record
-     * @brief Using for get last static ip config，witch is record in device flash when user set static ip config
+     * @brief Using for get last static ip config, witch is record in device flash when user set static ip config
      *
      * @attention read only
      */
@@ -589,6 +639,11 @@ typedef enum {
      * @brief Disparity offset interleaving
      */
     OB_STRUCT_DISP_OFFSET_CONFIG = 1064,
+
+    /**
+     * @brief Preset resolution ratio configuration
+     */
+    OB_STRUCT_PRESET_RESOLUTION_CONFIG = 1069,
 
     /**
      * @brief Color camera auto exposure
@@ -796,14 +851,35 @@ typedef enum {
     OB_PROP_SDK_IR_RIGHT_FRAME_UNPACK_BOOL = 3012,
 
     /**
+     * @brief Depth Stream Industry Working Mode Settings, currently only supported by DCW2.
+     */
+    OB_PROP_DEPTH_INDUSTRY_MODE_INT = 3024,
+
+    /**
      * @brief Read the current network bandwidth type of the network device, whether it is Gigabit Ethernet or Fast Ethernet, such as G335LE.
      */
     OB_PROP_NETWORK_BANDWIDTH_TYPE_INT = 3027,
 
     /**
+     * @brief Switch device performance mode, currently available in Adaptive Mode and High Performance Mode, such as G335LE.
+     */
+    OB_PROP_DEVICE_PERFORMANCE_MODE_INT = 3028,
+
+    /**
      * @brief Calibration JSON file read from device (Femto Mega, read only)
      */
     OB_RAW_DATA_CAMERA_CALIB_JSON_FILE = 4029,
+
+    /**
+     * @brief Confidence degree
+     */
+    OB_PROP_DEBUG_ESGM_CONFIDENCE_FLOAT = 5013,
+
+    /**
+     * @brief Color camera CCI denoising level. 0: Auto; 1-8: higher values indicate stronger denoising.
+     * @note This setting has no effect when AE (Auto Exposure) is disabled.
+     */
+    OB_PROP_COLOR_DENOISING_LEVEL_INT = 5525,
 } OBPropertyID,
     ob_property_id;
 
