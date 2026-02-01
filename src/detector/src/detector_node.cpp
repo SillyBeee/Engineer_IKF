@@ -53,7 +53,7 @@ void DetectorNode::InitModel(const string& model_path) {
             
             // 修复点 3: 直接复制，不需要 .c_str()
             strcpy(name_str, raw_name);
-            
+            RCLCPP_INFO(this->get_logger(), "Input name[%zu]: %s", i, name_str);
             input_names_.push_back(name_str);
         }
 
@@ -65,6 +65,7 @@ void DetectorNode::InitModel(const string& model_path) {
             const char* raw_name = output_name.get();
             char* name_str = new char[strlen(raw_name) + 1];
             strcpy(name_str, raw_name);
+            RCLCPP_INFO(this->get_logger(), "Output name[%zu]: %s", i, name_str);
             
             output_names_.push_back(name_str);
         }
@@ -105,7 +106,7 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
 
 void DetectorNode::PreProcess(const cv::Mat& src, cv::Mat& blob, float& ratio, int& dw, int& dh) {
     // Letterbox: 保持长宽比缩放
-    float r = min((float)kInputW / src.cols, (float)kInputH / src.rows);
+    float r = std::min((float)input_shape_width / src.size().width, (float)input_shape_height / src.size().height);
     int new_unpad_w = round(src.cols * r);
     int new_unpad_h = round(src.rows * r);
     
@@ -113,12 +114,12 @@ void DetectorNode::PreProcess(const cv::Mat& src, cv::Mat& blob, float& ratio, i
     cv::resize(src, resized, cv::Size(new_unpad_w, new_unpad_h));
 
     // 计算 Padding
-    dw = (kInputW - new_unpad_w) / 2;
-    dh = (kInputH - new_unpad_h) / 2;
-    
+    dw = (input_shape_width - new_unpad_w) / 2;
+    dh = (input_shape_height - new_unpad_h) / 2;
+
     // 加边框
-    cv::copyMakeBorder(resized, blob, dh, kInputH - new_unpad_h - dh, dw, kInputW - new_unpad_w - dw, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
-    
+    cv::copyMakeBorder(resized, blob, dh, input_shape_height - new_unpad_h - dh, dw, input_shape_width - new_unpad_w - dw, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
+
     // HWC -> CHW, BGR -> RGB, /255.0
     cv::dnn::blobFromImage(blob, blob, 1.0/255.0, cv::Size(), cv::Scalar(), true, false);
     ratio = r;
@@ -132,7 +133,7 @@ vector<PoseResult> DetectorNode::Infer(const cv::Mat& src) {
     int dw, dh;
     PreProcess(src, blob, ratio, dw, dh);
 
-    int64_t input_dims[] = {1, 3, kInputH, kInputW};
+    int64_t input_dims[] = {1, 3, this->input_shape_height, this->input_shape_width};
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     
     // cv::dnn::blobFromImage 结果是连续的浮点数，可以直接使用
@@ -143,49 +144,68 @@ vector<PoseResult> DetectorNode::Infer(const cv::Mat& src) {
                                        input_names_.data(), &input_tensor, 1, 
                                        output_names_.data(), output_names_.size());
 
-    // 解析输出: YOLOv8 Pose 输出一般是 [1, 56, 8400] (class + box + kpts)
-    // 56 = 4(box) + 1(score) + 17*3(kpts)
+    // YOLO26 Pose 输出是 [1, 300, 18] (channel + candidates + infos)
+    // 18(infos) = 4(box) + 1(confidence) + 1(class) + 4*3(kpts)
     float* out_data = output_tensors[0].GetTensorMutableData<float>();
     auto tensor_info = output_tensors[0].GetTensorTypeAndShapeInfo();
     auto shape = tensor_info.GetShape();
+    // RCLCPP_INFO(this->get_logger(),"shape_size:%ld", shape.size());
+    // RCLCPP_INFO(this->get_logger(), "Output shape: [%ld, %ld, %ld]", shape[0], shape[1], shape[2]);
     
-    // 注意：YOLOv8 输出通常是 [Batch, Channels, Anchors]，需要转置解析
-    int channels = shape[1]; // 56
-    int anchors = shape[2];  // 8400
+    int anchors = shape[1]; // 300
+    int infos = shape[2];  // 18
 
     vector<PoseResult> candidates;
     // 遍历每一个 anchor
     for (int i = 0; i < anchors; i++) {
-        // 获取置信度 (score 通常在索引 4)
-        // [cx, cy, w, h, score, kpt1_x, kpt1_y, kpt1_s, ...]
-        // 这一步取决于你的模型输出结构，YOLOv8 可能是 score 在 box 后面
-        float score = out_data[4 * anchors + i]; 
-        
-        if (score > 0.45) { // Confidence Threshold
-            float cx = out_data[0 * anchors + i];
-            float cy = out_data[1 * anchors + i];
-            float w  = out_data[2 * anchors + i];
-            float h  = out_data[3 * anchors + i];
+        int base_idx = i * infos;
+        float score = out_data[base_idx + 4];
 
-            // 还原到 letterbox 下的坐标
-            int left = int((cx - 0.5 * w) - dw) / ratio;
-            int top = int((cy - 0.5 * h) - dh) / ratio;
-            int width = int(w) / ratio;
-            int height = int(h) / ratio;
+        if (score > this->conf_threshold) {
+            // 获取原始输出值（假设为 x1, y1, x2, y2）
+            float x1_raw = out_data[base_idx + 0];
+            float y1_raw = out_data[base_idx + 1];
+            float x2_raw = out_data[base_idx + 2];
+            float y3_raw = out_data[base_idx + 3];
 
-            PoseResult res;
+            // 核心逻辑：按 xyxy 格式计算并缩放回原图
+            int left   = int((x1_raw - dw) / ratio);
+            int top    = int((y1_raw - dh) / ratio);
+            int right  = int((x2_raw - dw) / ratio);
+            int bottom = int((y3_raw - dh) / ratio);
+
+            // 计算宽度和高度
+            int width  = right - left;
+            int height = bottom - top;
+
+            // 越界保护
+            left   = std::max(0, std::min(left, src.cols - 1));
+            top    = std::max(0, std::min(top, src.rows - 1));
+            width  = std::max(0, std::min(width, src.cols - left));
+            height = std::max(0, std::min(height, src.rows - top));
+
+            PoseResult res = {};
             res.box = cv::Rect(left, top, width, height);
             res.score = score;
-            
-            // 解析关键点
-            for(int k=0; k<kNumKpts; ++k){
-                // 关键点数据在 score 之后，每个点 3 个值 (x, y, conf)
-                int kpt_idx_base = (5 + k * 3) * anchors + i;
-                float kx = (out_data[kpt_idx_base] - dw) / ratio;
-                float ky = (out_data[kpt_idx_base + 1] - dh) / ratio;
-                float ks = out_data[kpt_idx_base + 2];
-                res.kpts.push_back({kx, ky, ks});
+            res.label = (int)out_data[base_idx + 5];
+
+            // 关键点逻辑保持不变（关键点通常永远是绝对坐标点）
+            for (int k = 0; k < 4; ++k) {
+                KeyPoint kpt;
+                // 关键点从索引 6 开始，每个点占 3 个值 (x, y, score)
+                float kx = out_data[base_idx + 6 + k * 3];
+                float ky = out_data[base_idx + 7 + k * 3];
+                float ks = out_data[base_idx + 8 + k * 3];
+
+                // 核心修复：减去偏移量，再除以缩放比例
+                kpt.x = (kx - dw) / ratio;
+                kpt.y = (ky - dh) / ratio;
+                kpt.score = ks;
+
+                res.kpts.push_back(kpt);
             }
+            // -----------------------
+
             candidates.push_back(res);
         }
     }

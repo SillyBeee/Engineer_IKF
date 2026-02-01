@@ -10,7 +10,7 @@
 #include <filesystem>
 // Forward declaration of the onMouse function
 
-#define RECORDING  //是否开启图片保存 按下c进行保存
+// #define RECORDING  //是否开启图片保存 按下c进行保存
 #define COLOR  //是否开启彩色图输出    单独开启彩色时可以输出1920x1080,同时输出时分辨率与深度图同步
 // #define DEPTH  //是否开启深度图输出
 

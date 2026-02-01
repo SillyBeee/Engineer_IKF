@@ -8,11 +8,12 @@
 #include <string>
 
 // 定义关键点结构
-struct KeyPoint {
+
+struct KeyPoint{
     float x;
     float y;
     float score;
-};
+}__attribute__((packed));
 
 // 定义单个输出姿态结果
 struct PoseResult {
@@ -21,6 +22,7 @@ struct PoseResult {
     int label;
     std::vector<KeyPoint> kpts;
 };
+
 
 class DetectorNode : public rclcpp::Node {
 public:
@@ -49,9 +51,12 @@ private:
     
     std::vector<const char*> input_names_;
     std::vector<const char*> output_names_;
-    
+     float m_widthPad, m_heightPad, m_ratio;   //用于letterbox恢复
+
     // 模型参数
-    const int kInputW = 640;
-    const int kInputH = 640;
-    const int kNumKpts = 17; // COCO Keypoints 数量
+    const int input_shape_width = 640;
+    const int input_shape_height = 640;
+    const int num_classes = 1;
+    const int num_keypoints = 4;
+    const double conf_threshold = 0.5;
 };
