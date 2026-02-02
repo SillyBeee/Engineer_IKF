@@ -6,7 +6,7 @@ echo "Submodules initialized."
 
 echo "Setting up apt libraries..."
 sudo apt update
-sudo apt install -y libsdl1.2-dev ros-jazzy-moveit ros-jazzy-moveit-servo ros-jazzy-serial-driver ros-jazzy-asio-cmake-module
+sudo apt install -y libsdl1.2-dev ros-jazzy-moveit ros-jazzy-moveit-servo ros-jazzy-serial-driver ros-jazzy-asio-cmake-module ros-jazzy-foxglove-bridge
 echo "Apt libraries setup complete."
 
 

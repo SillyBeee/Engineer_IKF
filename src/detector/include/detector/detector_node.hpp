@@ -1,16 +1,22 @@
 #pragma once
+
+// #define ONNX_MODE   //使用onnx进行推理
+#define RKNN_MODE       //使用RKNN进行推理
+
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/opencv.hpp>
-#include <onnxruntime_cxx_api.h> 
 #include <vector>
 #include <string>
 
+#ifdef ONNX_MODE
+#include <onnxruntime_cxx_api.h> 
+#endif //ONNX_MODE
 
-#define ONNX_MODE   //使用普通onnx进行推理
-
-
+#ifdef RKNN_MODE
+#include <rknn_api.h>
+#endif //RKNN_MODE
 
 // 定义关键点结构
 struct KeyPoint{
@@ -36,7 +42,7 @@ public:
 private:
     void ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg);
     
-    // ONNX Runtime 相关
+    //模型推理相关
     void InitModel(const std::string& model_path);
     std::vector<PoseResult> Infer(const cv::Mat& src);
     void PreProcess(const cv::Mat& src, cv::Mat& blob, float& ratio, int& dw, int& dh);
@@ -53,11 +59,21 @@ private:
     Ort::Env env_{nullptr};
     Ort::Session session_{nullptr};
     Ort::MemoryInfo allocator_info_{nullptr};
-    #endif
-
-
     std::vector<const char*> input_names_;
     std::vector<const char*> output_names_;
+    #endif //ONNX_MODE
+
+    
+
+
+    #ifdef RKNN_MODE
+    rknn_context rknn_ctx_{0};  
+    rknn_input_output_num io_num_;
+    std::vector<rknn_tensor_attr> input_attrs_;
+    std::vector<rknn_tensor_attr> output_attrs_;  
+    #endif //RKNN_MODE
+
+    
 
     // 模型参数
     const int input_shape_width = 640;

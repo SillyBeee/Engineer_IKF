@@ -19,10 +19,23 @@ set(ONNXRUNTIME_LIB ${ONNXRUNTIME_DIR}/lib/libonnxruntime.so)
 include_directories(${ONNXRUNTIME_DIR}/include)
 link_directories(${ONNXRUNTIME_DIR}/lib)
 
+set(RKNNRT_DIR ${CMAKE_SOURCE_DIR}/lib/librknn_api/aarch64)
+set(RKNN_INC_DIR ${CMAKE_SOURCE_DIR}/lib/librknn_api/include)
+set(RKNNRT_LIB ${RKNNRT_DIR}/librknnrt.so)
+
+include_directories(${RKNN_INC_DIR})
+
 include_directories(${CMAKE_SOURCE_DIR}/../utils)
+
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
   DIRECTORY src
+)
+
+# --- 将属性设置移到这里 ---
+set_target_properties(${PROJECT_NAME} PROPERTIES
+  INSTALL_RPATH "$ORIGIN"
+  BUILD_RPATH "${RKNNRT_DIR}"
 )
 
 add_compile_definitions(PKG_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
@@ -30,11 +43,13 @@ add_compile_definitions(PKG_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
 target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBRARIES}
   ${ONNXRUNTIME_LIB}
+  ${RKNNRT_LIB}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   ${OpenCV_INCLUDE_DIRS}
   ${ONNXRUNTIME_DIR}/include
+  ${RKNN_INC_DIR}
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}
@@ -47,6 +62,15 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+
+install(FILES ${RKNNRT_LIB}
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(FILES ${RKNNRT_LIB}
+  DESTINATION lib
+)
 
 ament_auto_package(
     INSTALL_TO_SHARE

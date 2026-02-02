@@ -6,3 +6,5 @@
 #### arm_plan_node --Moveit2实现上位机的解算与路径规划
 -------
 #### arm_config -- Moveit setup assistant生成的机械臂配置文件
+
+懒得配环境了,库文件全塞包里了

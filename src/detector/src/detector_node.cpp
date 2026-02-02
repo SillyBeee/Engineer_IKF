@@ -8,11 +8,17 @@ using namespace std;
 
 DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
-    
+    #ifdef ONNX_MODE
     this->declare_parameter("model_path", "model/best_s.onnx");
+    #endif //ONNX_MODE
+
+    #ifdef RKNN_MODE
+    this->declare_parameter("model_path", "model/best_n.rknn");
+    #endif //RKNN_MODE
+
     string model_path = this->get_parameter("model_path").as_string();
 
-    RCLCPP_INFO(this->get_logger(), "Loading ONNX model: %s", model_path.c_str());
+    RCLCPP_INFO(this->get_logger(), "Loading model: %s", model_path.c_str());
     InitModel(model_path);
 
     sub_image_ = this->create_subscription<sensor_msgs::msg::Image>(
@@ -24,12 +30,15 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
 
 DetectorNode::~DetectorNode() {
     // Session 会自动释放，这里清空名称指针
+    #ifdef ONNX_MODE
     for(auto ptr : input_names_) delete[] ptr;
     for(auto ptr : output_names_) delete[] ptr;
+    #endif //ONNX_MODE
 }
 
 void DetectorNode::InitModel(const string& model_path) {
     try {
+        #ifdef ONNX_MODE
         env_ = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "YoloPose");
         Ort::SessionOptions session_options;
         session_options.SetIntraOpNumThreads(4);
@@ -71,11 +80,58 @@ void DetectorNode::InitModel(const string& model_path) {
             
             output_names_.push_back(name_str);
         }
-        
+        #endif //ONNX_MODE
+
+        #ifdef RKNN_MODE
+        // 1. 读取模型文件
+        std::filesystem::path pkg_path= std::filesystem::path(PKG_SOURCE_DIR); 
+        std::string model_path_full = (pkg_path / model_path).string();
+        FILE *fp = fopen(model_path_full.c_str(), "rb");
+        if(fp == nullptr) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to open model file: %s", model_path.c_str());
+            return;
+        }
+        fseek(fp, 0, SEEK_END);
+        int model_len = ftell(fp);
+        void *model_data = malloc(model_len);
+        fseek(fp, 0, SEEK_SET);
+        if(fread(model_data, 1, model_len, fp) != (size_t)model_len) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to read model data");
+            free(model_data);
+            fclose(fp);
+            return;
+        }
+        fclose(fp);
+
+        // 2. 初始化 RKNN 上下文
+        int ret = rknn_init(&rknn_ctx_, model_data, model_len, 0, NULL);
+        free(model_data);
+        if (ret < 0) { 
+            RCLCPP_ERROR(this->get_logger(), "rknn_init fail! ret=%d", ret); 
+            return; 
+        }
+
+        // 3. 查询输入输出数量
+        ret = rknn_query(rknn_ctx_, RKNN_QUERY_IN_OUT_NUM, &io_num_, sizeof(io_num_));
+        if (ret < 0) { RCLCPP_ERROR(this->get_logger(), "rknn_query fail!"); return; }
+
+        // 4. 查询输入输出属性
+        input_attrs_.resize(io_num_.n_input);
+        output_attrs_.resize(io_num_.n_output);
+        for (uint32_t i = 0; i < io_num_.n_input; i++) {
+            input_attrs_[i].index = i;
+            rknn_query(rknn_ctx_, RKNN_QUERY_INPUT_ATTR, &(input_attrs_[i]), sizeof(rknn_tensor_attr));
+        }
+        for (uint32_t i = 0; i < io_num_.n_output; i++) {
+            output_attrs_[i].index = i;
+            rknn_query(rknn_ctx_, RKNN_QUERY_OUTPUT_ATTR, &(output_attrs_[i]), sizeof(rknn_tensor_attr));
+        }
+        RCLCPP_INFO(this->get_logger(), "RKNN model initialized success");
+        #endif 
     } catch (const exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to init ONNX model: %s", e.what());
+        RCLCPP_ERROR(this->get_logger(), "Failed to init model: %s", e.what());
     }
-    RCLCPP_INFO(this->get_logger(), "ONNX model initialized success");
+    RCLCPP_INFO(this->get_logger(), "model initialized success");
 }
 
 void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
@@ -91,6 +147,7 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     if(frame.empty()) return;
 
     auto results = Infer(frame);
+    RCLCPP_INFO(this->get_logger(), "Detect %zu target", results.size());
     
     // 定义不同关键点的颜色列表 (BGR 顺序)
     static const std::vector<cv::Scalar> kpt_colors = {
@@ -124,7 +181,7 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
 }
 
 void DetectorNode::PreProcess(const cv::Mat& src, cv::Mat& blob, float& ratio, int& dw, int& dh) {
-    // Letterbox: 保持长宽比缩放
+    // 1. 公共逻辑：计算缩放比例和 Padding (Letterbox)
     float r = std::min((float)input_shape_width / src.size().width, (float)input_shape_height / src.size().height);
     int new_unpad_w = round(src.cols * r);
     int new_unpad_h = round(src.rows * r);
@@ -132,31 +189,45 @@ void DetectorNode::PreProcess(const cv::Mat& src, cv::Mat& blob, float& ratio, i
     cv::Mat resized;
     cv::resize(src, resized, cv::Size(new_unpad_w, new_unpad_h));
 
-    // 计算 Padding
     dw = (input_shape_width - new_unpad_w) / 2;
     dh = (input_shape_height - new_unpad_h) / 2;
 
-    // 加边框
-    cv::copyMakeBorder(resized, blob, dh, input_shape_height - new_unpad_h - dh, dw, input_shape_width - new_unpad_w - dw, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
-
-    // HWC -> CHW, BGR -> RGB, /255.0
-    cv::dnn::blobFromImage(blob, blob, 1.0/255.0, cv::Size(), cv::Scalar(), true, false);
+    cv::Mat img_pad;
+    cv::copyMakeBorder(resized, img_pad, dh, input_shape_height - new_unpad_h - dh, 
+                       dw, input_shape_width - new_unpad_w - dw, 
+                       cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
     ratio = r;
+
+    // 2. 分模式处理数据格式
+    #ifdef ONNX_MODE
+    // ONNX 需要: RGB, NCHW, FP32, [0,1] 归一化
+    cv::dnn::blobFromImage(img_pad, blob, 1.0/255.0, cv::Size(), cv::Scalar(), true, false);
+    #endif
+
+    #ifdef RKNN_MODE
+    // RKNN 需要: RGB, NHWC, UINT8, [0,255] 原始值
+    // 直接在 img_pad 上进行通道转换并赋值给 blob
+    cv::cvtColor(img_pad, blob, cv::COLOR_BGR2RGB);
+    #endif
 }
 
 vector<PoseResult> DetectorNode::Infer(const cv::Mat& src) {
     MEASURE_TIME();
-    if(!session_) return {};
-
+    
     cv::Mat blob;
     float ratio; 
     int dw, dh;
     PreProcess(src, blob, ratio, dw, dh);
 
+    float* out_data = nullptr;
+    int anchors = 0;
+    int infos = 0;
+
+    #ifdef ONNX_MODE
+    if(!session_) return {};
     int64_t input_dims[] = {1, 3, this->input_shape_height, this->input_shape_width};
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    
-    // cv::dnn::blobFromImage 结果是连续的浮点数，可以直接使用
+    // blob 现在是 NCHW FP32
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
         memory_info, blob.ptr<float>(), blob.total(), input_dims, 4);
 
@@ -164,19 +235,40 @@ vector<PoseResult> DetectorNode::Infer(const cv::Mat& src) {
                                        input_names_.data(), &input_tensor, 1, 
                                        output_names_.data(), output_names_.size());
 
-    // YOLO26 Pose 输出是 [1, 300, 18] (channel + candidates + infos)
-    // 18(infos) = 4(box) + 1(confidence) + 1(class) + 4*3(kpts)
-    float* out_data = output_tensors[0].GetTensorMutableData<float>();
-    auto tensor_info = output_tensors[0].GetTensorTypeAndShapeInfo();
-    auto shape = tensor_info.GetShape();
-    // RCLCPP_INFO(this->get_logger(),"shape_size:%ld", shape.size());
-    // RCLCPP_INFO(this->get_logger(), "Output shape: [%ld, %ld, %ld]", shape[0], shape[1], shape[2]);
-    
-    int anchors = shape[1]; // 300
-    int infos = shape[2];  // 18
+    out_data = output_tensors[0].GetTensorMutableData<float>();
+    auto shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
+    anchors = shape[1];
+    infos = shape[2];
+    #endif 
 
+    #ifdef RKNN_MODE
+    if(!rknn_ctx_) return {};
+    
+    rknn_input inputs[1];
+    memset(inputs, 0, sizeof(inputs));
+    inputs[0].index = 0;
+    inputs[0].type = RKNN_TENSOR_UINT8; 
+    inputs[0].size = blob.total() * blob.elemSize(); // 640*640*3
+    inputs[0].fmt = RKNN_TENSOR_NHWC; 
+    inputs[0].buf = blob.data; // blob 现在是 RGB UINT8 NHWC
+
+    rknn_inputs_set(rknn_ctx_, io_num_.n_input, inputs);
+    rknn_run(rknn_ctx_, NULL);
+
+    rknn_output outputs[io_num_.n_output];
+    memset(outputs, 0, sizeof(outputs));
+    for (uint32_t i = 0; i < io_num_.n_output; i++) {
+        outputs[i].want_float = 1; 
+    }
+    rknn_outputs_get(rknn_ctx_, io_num_.n_output, outputs, NULL);
+
+    out_data = (float*)outputs[0].buf;
+    anchors = output_attrs_[0].dims[1]; 
+    infos = output_attrs_[0].dims[2];
+    #endif 
+    
+    //后处理部分 (逻辑通用)
     vector<PoseResult> candidates;
-    // 遍历每一个 anchor
     for (int i = 0; i < anchors; i++) {
         int base_idx = i * infos;
         float score = out_data[base_idx + 4];
@@ -230,7 +322,10 @@ vector<PoseResult> DetectorNode::Infer(const cv::Mat& src) {
         }
     }
     
-    // NMS(candidates, 0.45, 0.5);
+    #ifdef RKNN_MODE
+    rknn_outputs_release(rknn_ctx_, io_num_.n_output, outputs);
+    #endif
+
     return candidates;
 }
 
