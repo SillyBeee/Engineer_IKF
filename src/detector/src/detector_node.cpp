@@ -7,7 +7,7 @@ using namespace std;
 
 DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
-    this->declare_parameter("model_path", "model/best_s.rknn");
+    this->declare_parameter("model_path", "model/best_prune.rknn");
     this->declare_parameter("model_format", "rknn");
 
     model_path_ = this->get_parameter("model_path").as_string();

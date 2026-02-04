@@ -1,3 +1,4 @@
+#pragma once
 #include "inferencer.hpp"
 #include <rknn_api.h>
 #include "rclcpp/logger.hpp"

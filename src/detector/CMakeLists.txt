@@ -20,10 +20,15 @@ include_directories(${ONNXRUNTIME_DIR}/include)
 link_directories(${ONNXRUNTIME_DIR}/lib)
 
 set(RKNNRT_DIR ${CMAKE_SOURCE_DIR}/lib/librknn_api/aarch64)
-set(RKNN_INC_DIR ${CMAKE_SOURCE_DIR}/lib/librknn_api/include)
+set(RKNNRT_INC_DIR ${CMAKE_SOURCE_DIR}/lib/librknn_api/include)
 set(RKNNRT_LIB ${RKNNRT_DIR}/librknnrt.so)
+include_directories(${RKNNRT_INC_DIR})
 
-include_directories(${RKNN_INC_DIR})
+set(RGA_DIR ${CMAKE_SOURCE_DIR}/lib/rga/RK3588/lib/Linux/aarch64)
+set(RGA_INC_DIR ${CMAKE_SOURCE_DIR}/lib/rga/RK3588/include)
+set(RGA_LIB ${RGA_DIR}/librga.so)
+include_directories(${RGA_INC_DIR})
+
 include_directories(${CMAKE_SOURCE_DIR}/../utils)
 include_directories(${CMAKE_SOURCE_DIR}/include/${PROJECT_NAME})
 
@@ -44,12 +49,14 @@ target_link_libraries(${PROJECT_NAME}
   ${OpenCV_LIBRARIES}
   ${ONNXRUNTIME_LIB}
   ${RKNNRT_LIB}
+  ${RGA_LIB}
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   ${OpenCV_INCLUDE_DIRS}
   ${ONNXRUNTIME_DIR}/include
-  ${RKNN_INC_DIR}
+  ${RKNNRT_INC_DIR}
+  ${RGA_INC_DIR}
 )
 
 rclcpp_components_register_node(${PROJECT_NAME}

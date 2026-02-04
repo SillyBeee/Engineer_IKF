@@ -1,5 +1,6 @@
 #include "inferencer_rknn.hpp"
 #include "inferencer.hpp"
+#include "rknn_api.h"
 #include "scope_timer.hpp"
 #include <exception>
 Inferencer_RKNN::Inferencer_RKNN(const std::string& model_path,ModelParams model_params){
@@ -34,11 +35,19 @@ void Inferencer_RKNN::InitModel(const std::string& model_path){
 
         // 2. 初始化 RKNN 上下文
         int ret = rknn_init(&rknn_ctx_, model_data, model_len, 0, NULL);
+
+        //debug模式
+        // int ret = rknn_init(&rknn_ctx_, model_data, model_len,  RKNN_FLAG_COLLECT_PERF_MASK, NULL);
+
         free(model_data);
         if (ret < 0) { 
             RCLCPP_ERROR(this->logger_, "rknn_init fail! ret=%d", ret); 
             return; 
         }
+
+        rknn_core_mask core_mask = RKNN_NPU_CORE_ALL;
+        ret = rknn_set_core_mask(rknn_ctx_, core_mask);
+        if (ret < 0) { RCLCPP_ERROR(this->logger_, "rknn_set_core_mask fail!"); return; }
 
         // 3. 查询输入输出数量
         ret = rknn_query(rknn_ctx_, RKNN_QUERY_IN_OUT_NUM, &io_num_, sizeof(io_num_));
@@ -100,18 +109,23 @@ std::vector<PoseResult> Inferencer_RKNN::Infer(const cv::Mat& src){
     anchors = output_attrs_[0].dims[1]; 
     infos = output_attrs_[0].dims[2];
 
-    static bool first_perf_print = true;
-    if (first_perf_print) {
-        rknn_perf_detail perf_detail;
-        int ret = rknn_query(rknn_ctx_, RKNN_QUERY_PERF_DETAIL, &perf_detail, sizeof(perf_detail));
-        if (ret == 0) {
-            printf("--- RKNN Performance Detail ---\n%s\n", perf_detail.perf_data);
-            first_perf_print = false; // 只打印一次
-        }
-    }
+
+    //debug输出
+    // static bool first_perf_print = true;
+    // if (first_perf_print) {
+    //     rknn_perf_detail perf_detail;
+    //     int ret = rknn_query(rknn_ctx_, RKNN_QUERY_PERF_DETAIL, &perf_detail, sizeof(perf_detail));
+    //     if (ret == 0) {
+    //         printf("--- RKNN Performance Detail ---\n%s\n", perf_detail.perf_data);
+    //         first_perf_print = false; // 只打印一次
+    //     }
+    // }
     // DetectorNode::NMS(candidates, 0.7, 0.5);
     std::vector<PoseResult> candidates = PostProcess(out_data, anchors, infos);
     rknn_outputs_release(rknn_ctx_, io_num_.n_output, outputs);
+
+
+
     return candidates;
 }
 
