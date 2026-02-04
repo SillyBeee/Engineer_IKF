@@ -24,8 +24,8 @@ set(RKNN_INC_DIR ${CMAKE_SOURCE_DIR}/lib/librknn_api/include)
 set(RKNNRT_LIB ${RKNNRT_DIR}/librknnrt.so)
 
 include_directories(${RKNN_INC_DIR})
-
 include_directories(${CMAKE_SOURCE_DIR}/../utils)
+include_directories(${CMAKE_SOURCE_DIR}/include/${PROJECT_NAME})
 
 
 ament_auto_add_library(${PROJECT_NAME} SHARED
