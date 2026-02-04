@@ -9,7 +9,7 @@ using namespace std;
 DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
     
-    this->declare_parameter("model_path", "model/best_s.onnx");
+    this->declare_parameter("model_path", "model/best11s.onnx");
     string model_path = this->get_parameter("model_path").as_string();
 
     RCLCPP_INFO(this->get_logger(), "Loading ONNX model: %s", model_path.c_str());
