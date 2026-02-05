@@ -1,21 +1,24 @@
 #pragma once
 #include "inferencer.hpp"
 #include <rknn_api.h>
+#include <string>
 #include "rclcpp/logger.hpp"
 
 class Inferencer_RKNN : public Inferencer{
 public:
     Inferencer_RKNN(const std::string& model_path,ModelParams model_params);
+    Inferencer_RKNN(const std::string& model_path);
     ~Inferencer_RKNN() override;
 
     void InitModel(const std::string& model_path) override;
-    std::vector<PoseResult> Infer(const cv::Mat& src) override;
-    void PreProcess(const cv::Mat& src, cv::Mat& blob) override;
+    std::vector<PoseResult> Infer(std::shared_ptr<cv::Mat> src) override;
+    void PreProcess(std::shared_ptr<cv::Mat> src, std::shared_ptr<cv::Mat> blob) override;
     std::vector<PoseResult> PostProcess(
         float* out_data,
         int anchors,
         int infos
         ) override;
+    void SetNPUCore(rknn_core_mask mask);
 
 
     rclcpp::Logger get_logger(){ return logger_; }
@@ -35,6 +38,7 @@ private:
         4,   
         0.3  
     };
+    std::string model_path_;
 
 
     float ratio_;

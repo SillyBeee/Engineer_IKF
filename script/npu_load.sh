@@ -1,0 +1,1 @@
+sudo watch -n 1 cat /sys/kernel/debug/rknpu/load

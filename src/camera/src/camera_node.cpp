@@ -417,7 +417,7 @@ void CameraNode::PublishImage(cv::Mat& image) {
     } catch (cv_bridge::Exception& e) {
         RCLCPP_ERROR(this->get_logger(), "Publish color error: %s", e.what());
     }
-    // RCLCPP_INFO(this->get_logger(), "Color send success");
+    RCLCPP_INFO(this->get_logger(), "Color send success");
     // RCLCPP_INFO(this->get_logger(),"Color Size: %d, %d", image.cols, image.rows);
 }
 

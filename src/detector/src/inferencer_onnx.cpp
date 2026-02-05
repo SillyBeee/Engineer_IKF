@@ -2,6 +2,7 @@
 #include "scope_timer.hpp"
 Inferencer_ONNX::Inferencer_ONNX(const std::string &model_path,ModelParams model_params) {
     this->model_params_ = model_params;
+    this->model_path_ = model_path;
     InitModel(model_path);
 }
 
@@ -57,12 +58,12 @@ void Inferencer_ONNX::InitModel(const std::string &model_path) {
     
 }
 
-std::vector<PoseResult> Inferencer_ONNX::Infer(const cv::Mat &src) {
+std::vector<PoseResult> Inferencer_ONNX::Infer(std::shared_ptr<cv::Mat> src) {
     MEASURE_TIME();
 
-    this->src_cols = src.cols;
-    this->src_rows = src.rows;
-    cv::Mat blob;   
+    this->src_cols = src->cols;
+    this->src_rows = src->rows;
+    std::shared_ptr<cv::Mat> blob = std::make_shared<cv::Mat>();   
     PreProcess(src, blob);
 
     float* out_data = nullptr;
@@ -74,7 +75,7 @@ std::vector<PoseResult> Inferencer_ONNX::Infer(const cv::Mat &src) {
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     // blob 现在是 NCHW FP32
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-        memory_info, blob.ptr<float>(), blob.total(), input_dims, 4);
+        memory_info, blob->ptr<float>(), blob->total(), input_dims, 4);
 
     auto output_tensors = session_.Run(Ort::RunOptions{nullptr}, 
                                        input_names_.data(), &input_tensor, 1, 
@@ -85,17 +86,22 @@ std::vector<PoseResult> Inferencer_ONNX::Infer(const cv::Mat &src) {
     anchors = shape[1];
     infos = shape[2];
 
-    return PostProcess(out_data, anchors, infos);
+    auto candidates = PostProcess(out_data, anchors, infos);
+    for (auto& c : candidates) {
+        c.src = src;
+    }
+
+    return candidates;
 }
 
-void Inferencer_ONNX::PreProcess(const cv::Mat &src, cv::Mat &blob) {
+void Inferencer_ONNX::PreProcess(std::shared_ptr<cv::Mat> src, std::shared_ptr<cv::Mat> blob) {
     // 1. 公共逻辑：计算缩放比例和 Padding (Letterbox)
-    float r = std::min((float)model_params_.input_shape_width / src.size().width, (float)model_params_.input_shape_height / src.size().height);
-    int new_unpad_w = round(src.cols * r);
-    int new_unpad_h = round(src.rows * r);
+    float r = std::min((float)model_params_.input_shape_width / src->size().width, (float)model_params_.input_shape_height / src->size().height);
+    int new_unpad_w = round(src->cols * r);
+    int new_unpad_h = round(src->rows * r);
     
     cv::Mat resized;
-    cv::resize(src, resized, cv::Size(new_unpad_w, new_unpad_h));
+    cv::resize(*src, resized, cv::Size(new_unpad_w, new_unpad_h));
 
     this->dw_ = (model_params_.input_shape_width - new_unpad_w) / 2;
     this->dh_ = (model_params_.input_shape_height - new_unpad_h) / 2;
@@ -107,7 +113,7 @@ void Inferencer_ONNX::PreProcess(const cv::Mat &src, cv::Mat &blob) {
     this->ratio_ = r;
 
     // ONNX 需要: RGB, NCHW, FP32, [0,1] 归一化
-    cv::dnn::blobFromImage(img_pad, blob, 1.0/255.0, cv::Size(), cv::Scalar(), true, false);
+    cv::dnn::blobFromImage(img_pad, *blob, 1.0/255.0, cv::Size(), cv::Scalar(), true, false);
 }
 
 std::vector<PoseResult> Inferencer_ONNX::PostProcess(

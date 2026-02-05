@@ -1,7 +1,11 @@
 #include "detector/detector_node.hpp"
+#include <memory>
+#include <rclcpp/qos.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 #include <filesystem>
 #include <scope_timer.hpp>
+#include <thread>
+#include "cv_bridge/cv_bridge.hpp"
 using namespace std;
 
 
@@ -9,39 +13,107 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
     this->declare_parameter("model_path", "model/best_prune.rknn");
     this->declare_parameter("model_format", "rknn");
+    this->declare_parameter("thread_num", 6);
 
     model_path_ = this->get_parameter("model_path").as_string();
     std::string model_full_path = PKG_SOURCE_DIR+model_path_.string();
     RCLCPP_INFO(this->get_logger(), "Loading model: %s", model_full_path.c_str());
 
-    this->inferencer_rknn_ = std::make_unique<Inferencer_RKNN>(model_full_path, model_params_);
+    // this->inferencer_pool_ = std::make_unique<InferencerPool
+    //                                 <Inferencer_RKNN, 
+    //                                 std::shared_ptr<cv::Mat>, 
+    //                                 std::vector<PoseResult> >>
+    //                                 (model_full_path,
+    //                                 this->get_parameter("thread_num").as_int());
+
+    // if(this->inferencer_pool_->Init() != 0){
+    //     RCLCPP_ERROR(this->get_logger(), "Failed to initialize InferencerPool");
+    //     return;
+    // }
+
+    // auto inferencers = this->inferencer_pool_->GetInferencers();
+    // inferencers[0]->SetNPUCore(RKNN_NPU_CORE_0);
+    // inferencers[1]->SetNPUCore(RKNN_NPU_CORE_1);
+    // inferencers[2]->SetNPUCore(RKNN_NPU_CORE_2);
+    // inferencers[3]->SetNPUCore(RKNN_NPU_CORE_ALL);
+    // inferencers[4]->SetNPUCore(RKNN_NPU_CORE_ALL);
+    // inferencers[5]->SetNPUCore(RKNN_NPU_CORE_ALL);
+                                                                                                      
+
+    auto qos = rclcpp::SensorDataQoS();
+    qos.keep_last(2);
+    // qos.durability_volatile();
 
     sub_image_ = this->create_subscription<sensor_msgs::msg::Image>(
-        "/image", 10,
+        "/image", 
+        qos,
         std::bind(&DetectorNode::ImageCallback, this, std::placeholders::_1));
+
     pub_image_ = this->create_publisher<sensor_msgs::msg::Image>("/detector/result", 10);
+
+
+    // this->main_loop_ = std::thread(&DetectorNode::MainLoop, this);
+
 }
 
 DetectorNode::~DetectorNode() {
-    this->inferencer_rknn_.reset();
+    if (this->main_loop_.joinable()) {
+        this->main_loop_.join();
+    }
+    this->inferencer_pool_.reset();
+    
+}
+
+void DetectorNode::MainLoop() {
+    // static int frame_count = 0;
+    // auto start_time = std::chrono::steady_clock::now();
+    // while (rclcpp::ok()) {
+
+        // 从线程池获取推理结果
+        // std::vector<PoseResult> results;
+        // if (this->inferencer_pool_->Get(results) != 0) {
+        //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        //     // RCLCPP_ERROR(this->get_logger(), "Failed to get inference result");
+        //     continue;
+        // }
+
+        // RCLCPP_INFO(this->get_logger(), "Got inference result with %zu detections", results.size());
+
+        // frame_count++;
+        // if(frame_count == 120){
+        //     auto end_time = std::chrono::steady_clock::now();
+        //     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        //     double fps = frame_count * 1000.0 / elapsed;
+        //     RCLCPP_WARN(this->get_logger(), "Processing FPS: %.2f", fps);
+        //     frame_count = 0;
+        //     start_time = std::chrono::steady_clock::now();
+        // }
+        
+
+        // if (results.empty()) {
+        //     continue;
+        // }
+
+        //绘制并发布
+        // DrawDetections(*(results[0].src), results);
+        
+        // // 绘制检测结果
+        // cv::Mat draw_img = *results[0].src;
+        // DrawDetections(draw_img, results);
+
+        // // 发布结果图像
+        // cv_bridge::CvImage  cv_image = cv_bridge::CvImage();
+        // cv_image.encoding = "bgr8";
+        // cv_image.image = draw_img;
+
+        // auto output_msg = cv_image.toImageMsg();
+        // pub_image_->publish(*output_msg);
+    // }
 }
 
 
-void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
-    // RCLCPP_INFO(this->get_logger(), "Received image");
-    cv::Mat frame;
-    try {
-        frame = cv_bridge::toCvCopy(msg, "bgr8")->image;
-    } catch (cv_bridge::Exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
-        return;
-    }
 
-    if(frame.empty()) return;
-
-    auto results = this->inferencer_rknn_->Infer(frame);
-    RCLCPP_INFO(this->get_logger(), "Detect %zu target", results.size());
-    
+void DetectorNode::DrawDetections(cv::Mat& image, const std::vector<PoseResult>& results) {
     // 定义不同关键点的颜色列表 (BGR 顺序)
     static const std::vector<cv::Scalar> kpt_colors = {
         cv::Scalar(255, 0, 0),   // 点 0: 蓝色
@@ -52,7 +124,7 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
 
     // 简单绘制
     for(const auto& res : results){
-        cv::rectangle(frame, res.box, cv::Scalar(0, 255, 0), 2);
+        cv::rectangle(image, res.box, cv::Scalar(0, 255, 0), 2);
         
         // 改用索引遍历，以便区分不同的点
         for(size_t i = 0; i < res.kpts.size(); ++i){
@@ -60,7 +132,7 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
             if(kp.score > 0.5){
                 // 根据索引选择颜色，如果点数超过预设颜色则默认绿色
                 cv::Scalar color = (i < kpt_colors.size()) ? kpt_colors[i] : cv::Scalar(0, 255, 0);
-                cv::circle(frame, cv::Point((int)kp.x, (int)kp.y), 4, color, -1);
+                cv::circle(image, cv::Point((int)kp.x, (int)kp.y), 4, color, -1);
                 
                 // (可选) 在点旁边绘制索引号，方便确认点的顺序
                 // cv::putText(frame, std::to_string(i), cv::Point((int)kp.x, (int)kp.y), 
@@ -68,9 +140,29 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
             }
         }
     }
+}
 
-    sensor_msgs::msg::Image::SharedPtr out_msg = cv_bridge::CvImage(msg->header, "bgr8", frame).toImageMsg();
-    pub_image_->publish(*out_msg);
+
+void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "Received image");
+    // std::shared_ptr<cv::Mat> frame;
+    // try {
+    //     frame = std::make_shared<cv::Mat>(cv_bridge::toCvCopy(msg)->image);
+    // } catch (cv_bridge::Exception& e) {
+    //     RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+    //     return;
+    // }
+
+    // if(frame->empty()) return;
+
+    // //图像放入线程池
+    // if(this->inferencer_pool_->Put(frame)!=0) {
+    //     RCLCPP_ERROR(this->get_logger(), "Failed to put image into inferencer pool");
+    //     return;
+    // }
+
+
+    
 }
 
 

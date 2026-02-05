@@ -17,7 +17,6 @@
 class ThreadPool{
 public: 
     ThreadPool():
-
     ThreadPool(std::thread::hardware_concurrency()){}
 
     ThreadPool(size_t max_thread_num):

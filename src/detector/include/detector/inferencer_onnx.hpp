@@ -10,8 +10,8 @@ public:
     ~Inferencer_ONNX() override;
 
     void InitModel(const std::string& model_path) override;
-    std::vector<PoseResult> Infer(const cv::Mat& src) override;
-    void PreProcess(const cv::Mat& src, cv::Mat& blob) override;
+    std::vector<PoseResult> Infer( std::shared_ptr<cv::Mat> src) override;
+    void PreProcess(std::shared_ptr<cv::Mat> src, std::shared_ptr<cv::Mat> blob) override;
     std::vector<PoseResult> PostProcess(
         float* out_data,
         int anchors,
@@ -37,6 +37,7 @@ private:
         4,   
         0.3  
     };
+    std::string model_path_;
 
     float ratio_;
     int dw_;

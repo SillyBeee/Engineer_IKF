@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <cv_bridge/cv_bridge.hpp>
@@ -19,6 +20,7 @@ struct PoseResult {
     float score;
     int label;
     std::vector<KeyPoint> kpts;
+    std::shared_ptr<cv::Mat> src;
 };
 
 
@@ -37,8 +39,8 @@ public:
     Inferencer()=default;
     virtual ~Inferencer() = default;
     virtual void InitModel(const std::string& model_path)=0;
-    virtual std::vector<PoseResult> Infer(const cv::Mat& src) = 0;
-    virtual void PreProcess(const cv::Mat& src, cv::Mat& blob)=0;
+    virtual std::vector<PoseResult> Infer( std::shared_ptr<cv::Mat> src) = 0;
+    virtual void PreProcess(std::shared_ptr<cv::Mat> src, std::shared_ptr<cv::Mat> blob)=0;
     virtual std::vector<PoseResult> PostProcess(
         float* out_data,
         int anchors,

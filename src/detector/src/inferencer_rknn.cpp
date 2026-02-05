@@ -3,9 +3,21 @@
 #include "rknn_api.h"
 #include "scope_timer.hpp"
 #include <exception>
-Inferencer_RKNN::Inferencer_RKNN(const std::string& model_path,ModelParams model_params){
+Inferencer_RKNN::Inferencer_RKNN(const std::string& model_path,ModelParams model_params ){
     this->model_params_ = model_params;
+    this->model_path_ = model_path;
     InitModel(model_path);
+}
+
+Inferencer_RKNN::Inferencer_RKNN(const std::string& model_path){
+    this->model_path_ = model_path;
+    InitModel(model_path);
+}
+
+
+void Inferencer_RKNN::SetNPUCore(rknn_core_mask mask){
+    int ret = rknn_set_core_mask(this->rknn_ctx_, mask);
+    if (ret < 0) { RCLCPP_ERROR(this->logger_, "rknn_set_core_mask fail!"); return; }
 }
 
 Inferencer_RKNN::~Inferencer_RKNN(){
@@ -73,12 +85,12 @@ void Inferencer_RKNN::InitModel(const std::string& model_path){
     }
 }
 
-std::vector<PoseResult> Inferencer_RKNN::Infer(const cv::Mat& src){
+std::vector<PoseResult> Inferencer_RKNN::Infer(std::shared_ptr<cv::Mat> src){
     MEASURE_TIME();
     
-    cv::Mat blob;
-    this->src_cols = src.cols;
-    this->src_rows = src.rows;
+    std::shared_ptr<cv::Mat> blob = std::make_shared<cv::Mat>();
+    this->src_cols = src->cols;
+    this->src_rows = src->rows;
     PreProcess(src, blob);
 
     float* out_data = nullptr;
@@ -91,9 +103,9 @@ std::vector<PoseResult> Inferencer_RKNN::Infer(const cv::Mat& src){
     memset(inputs, 0, sizeof(inputs));
     inputs[0].index = 0;
     inputs[0].type = RKNN_TENSOR_UINT8; 
-    inputs[0].size = blob.total() * blob.elemSize(); // 640*640*3
+    inputs[0].size = blob->total() * blob->elemSize(); // 640*640*3
     inputs[0].fmt = RKNN_TENSOR_NHWC; 
-    inputs[0].buf = blob.data; // blob 现在是 RGB UINT8 NHWC
+    inputs[0].buf = blob->data; // blob 现在是 RGB UINT8 NHWC
 
     rknn_inputs_set(rknn_ctx_, io_num_.n_input, inputs);
     rknn_run(rknn_ctx_, NULL);
@@ -125,18 +137,20 @@ std::vector<PoseResult> Inferencer_RKNN::Infer(const cv::Mat& src){
     rknn_outputs_release(rknn_ctx_, io_num_.n_output, outputs);
 
 
-
+    for (auto& res : candidates){
+        res.src = src;
+    }
     return candidates;
 }
 
-void Inferencer_RKNN::PreProcess(const cv::Mat& src, cv::Mat& blob){
+void Inferencer_RKNN::PreProcess(std::shared_ptr<cv::Mat> src, std::shared_ptr<cv::Mat> blob){
     // 1. 公共逻辑：计算缩放比例和 Padding (Letterbox)
-    float r = std::min((float)model_params_.input_shape_width / src.size().width, (float)model_params_.input_shape_height / src.size().height);
-    int new_unpad_w = round(src.cols * r);
-    int new_unpad_h = round(src.rows * r);
+    float r = std::min((float)model_params_.input_shape_width / src->size().width, (float)model_params_.input_shape_height / src->size().height);
+    int new_unpad_w = round(src->cols * r);
+    int new_unpad_h = round(src->rows * r);
     
     cv::Mat resized;
-    cv::resize(src, resized, cv::Size(new_unpad_w, new_unpad_h));
+    cv::resize(*src, resized, cv::Size(new_unpad_w, new_unpad_h));
 
     this->dw_ = (model_params_.input_shape_width - new_unpad_w) / 2;
     this->dh_ = (model_params_.input_shape_height - new_unpad_h) / 2;
@@ -149,7 +163,7 @@ void Inferencer_RKNN::PreProcess(const cv::Mat& src, cv::Mat& blob){
 
     // RKNN 需要: RGB, NHWC, UINT8, [0,255] 原始值
     // 直接在 img_pad 上进行通道转换并赋值给 blob
-    cv::cvtColor(img_pad, blob, cv::COLOR_BGR2RGB);
+    cv::cvtColor(img_pad, *blob, cv::COLOR_BGR2RGB);
 }
 
 std::vector<PoseResult> Inferencer_RKNN::PostProcess(
