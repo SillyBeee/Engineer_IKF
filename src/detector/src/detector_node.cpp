@@ -13,28 +13,28 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
     this->declare_parameter("model_path", "model/best_prune.rknn");
     this->declare_parameter("model_format", "rknn");
-    this->declare_parameter("thread_num", 6);
+    this->declare_parameter("thread_num", 3);
 
     model_path_ = this->get_parameter("model_path").as_string();
     std::string model_full_path = PKG_SOURCE_DIR+model_path_.string();
     RCLCPP_INFO(this->get_logger(), "Loading model: %s", model_full_path.c_str());
 
-    // this->inferencer_pool_ = std::make_unique<InferencerPool
-    //                                 <Inferencer_RKNN, 
-    //                                 std::shared_ptr<cv::Mat>, 
-    //                                 std::vector<PoseResult> >>
-    //                                 (model_full_path,
-    //                                 this->get_parameter("thread_num").as_int());
+    this->inferencer_pool_ = std::make_unique<InferencerPool
+                                    <Inferencer_RKNN, 
+                                    std::shared_ptr<cv::Mat>, 
+                                    std::vector<PoseResult> >>
+                                    (model_full_path,
+                                    this->get_parameter("thread_num").as_int());
 
-    // if(this->inferencer_pool_->Init() != 0){
-    //     RCLCPP_ERROR(this->get_logger(), "Failed to initialize InferencerPool");
-    //     return;
-    // }
+    if(this->inferencer_pool_->Init() != 0){
+        RCLCPP_ERROR(this->get_logger(), "Failed to initialize InferencerPool");
+        return;
+    }
 
-    // auto inferencers = this->inferencer_pool_->GetInferencers();
-    // inferencers[0]->SetNPUCore(RKNN_NPU_CORE_0);
-    // inferencers[1]->SetNPUCore(RKNN_NPU_CORE_1);
-    // inferencers[2]->SetNPUCore(RKNN_NPU_CORE_2);
+    auto inferencers = this->inferencer_pool_->GetInferencers();
+    inferencers[0]->SetNPUCore(RKNN_NPU_CORE_0);
+    inferencers[1]->SetNPUCore(RKNN_NPU_CORE_1);
+    inferencers[2]->SetNPUCore(RKNN_NPU_CORE_2);
     // inferencers[3]->SetNPUCore(RKNN_NPU_CORE_ALL);
     // inferencers[4]->SetNPUCore(RKNN_NPU_CORE_ALL);
     // inferencers[5]->SetNPUCore(RKNN_NPU_CORE_ALL);
@@ -46,13 +46,13 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
 
     sub_image_ = this->create_subscription<sensor_msgs::msg::Image>(
         "/image", 
-        qos,
+        10,
         std::bind(&DetectorNode::ImageCallback, this, std::placeholders::_1));
 
     pub_image_ = this->create_publisher<sensor_msgs::msg::Image>("/detector/result", 10);
 
 
-    // this->main_loop_ = std::thread(&DetectorNode::MainLoop, this);
+    this->main_loop_ = std::thread(&DetectorNode::MainLoop, this);
 
 }
 
@@ -65,50 +65,50 @@ DetectorNode::~DetectorNode() {
 }
 
 void DetectorNode::MainLoop() {
-    // static int frame_count = 0;
-    // auto start_time = std::chrono::steady_clock::now();
-    // while (rclcpp::ok()) {
+    static int frame_count = 0;
+    auto start_time = std::chrono::steady_clock::now();
+    while (rclcpp::ok()) {
 
-        // 从线程池获取推理结果
-        // std::vector<PoseResult> results;
-        // if (this->inferencer_pool_->Get(results) != 0) {
-        //     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        //     // RCLCPP_ERROR(this->get_logger(), "Failed to get inference result");
-        //     continue;
-        // }
+        //从线程池获取推理结果
+        std::vector<PoseResult> results;
+        if (this->inferencer_pool_->Get(results) != 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // RCLCPP_ERROR(this->get_logger(), "Failed to get inference result");
+            continue;
+        }
 
-        // RCLCPP_INFO(this->get_logger(), "Got inference result with %zu detections", results.size());
+        RCLCPP_INFO(this->get_logger(), "Got inference result with %zu detections", results.size());
 
-        // frame_count++;
-        // if(frame_count == 120){
-        //     auto end_time = std::chrono::steady_clock::now();
-        //     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-        //     double fps = frame_count * 1000.0 / elapsed;
-        //     RCLCPP_WARN(this->get_logger(), "Processing FPS: %.2f", fps);
-        //     frame_count = 0;
-        //     start_time = std::chrono::steady_clock::now();
-        // }
+        frame_count++;
+        if(frame_count == 120){
+            auto end_time = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            double fps = frame_count * 1000.0 / elapsed;
+            RCLCPP_WARN(this->get_logger(), "Processing FPS: %.2f", fps);
+            frame_count = 0;
+            start_time = std::chrono::steady_clock::now();
+        }
         
 
-        // if (results.empty()) {
-        //     continue;
-        // }
+        if (results.empty()) {
+            continue;
+        }
 
         //绘制并发布
-        // DrawDetections(*(results[0].src), results);
+        DrawDetections(*(results[0].src), results);
         
-        // // 绘制检测结果
-        // cv::Mat draw_img = *results[0].src;
-        // DrawDetections(draw_img, results);
+        // 绘制检测结果
+        cv::Mat draw_img = *results[0].src;
+        DrawDetections(draw_img, results);
 
-        // // 发布结果图像
-        // cv_bridge::CvImage  cv_image = cv_bridge::CvImage();
-        // cv_image.encoding = "bgr8";
-        // cv_image.image = draw_img;
+        // 发布结果图像
+        cv_bridge::CvImage  cv_image = cv_bridge::CvImage();
+        cv_image.encoding = "bgr8";
+        cv_image.image = draw_img;
 
-        // auto output_msg = cv_image.toImageMsg();
-        // pub_image_->publish(*output_msg);
-    // }
+        auto output_msg = cv_image.toImageMsg();
+        pub_image_->publish(*output_msg);
+    }
 }
 
 
@@ -145,21 +145,21 @@ void DetectorNode::DrawDetections(cv::Mat& image, const std::vector<PoseResult>&
 
 void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     RCLCPP_INFO(this->get_logger(), "Received image");
-    // std::shared_ptr<cv::Mat> frame;
-    // try {
-    //     frame = std::make_shared<cv::Mat>(cv_bridge::toCvCopy(msg)->image);
-    // } catch (cv_bridge::Exception& e) {
-    //     RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
-    //     return;
-    // }
+    std::shared_ptr<cv::Mat> frame;
+    try {
+        frame = std::make_shared<cv::Mat>(cv_bridge::toCvCopy(msg)->image);
+    } catch (cv_bridge::Exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+        return;
+    }
 
-    // if(frame->empty()) return;
+    if(frame->empty()) return;
 
-    // //图像放入线程池
-    // if(this->inferencer_pool_->Put(frame)!=0) {
-    //     RCLCPP_ERROR(this->get_logger(), "Failed to put image into inferencer pool");
-    //     return;
-    // }
+    //图像放入线程池
+    if(this->inferencer_pool_->Put(frame)!=0) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to put image into inferencer pool");
+        return;
+    }
 
 
     
