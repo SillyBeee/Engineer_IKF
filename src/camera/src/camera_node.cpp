@@ -300,7 +300,7 @@ void CameraNode::LoopForCameraInfo() {
 void CameraNode::LoopForPublish() {
     while (rclcpp::ok()) {
         //不加延时会一直锁住了导致图像无法刷新，加个延时保证图像流畅
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
         std::shared_ptr<ob::FrameSet> current_frameset = nullptr;
 
         {

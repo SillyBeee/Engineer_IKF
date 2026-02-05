@@ -68,10 +68,10 @@ int InferencerPool<ModelType, InputType, OutputType>::GetInferencerIndex() {
 template <typename ModelType, typename InputType, typename OutputType>
 int InferencerPool<ModelType, InputType, OutputType>::Put(InputType& input){
     std::lock_guard<std::mutex> lock(queueMtx);
-    // if(results_queue_.size() >= thread_num_ * 4){
-    //     RCLCPP_DEBUG(rclcpp::get_logger("InferencerPool"), "InferencerPool queue is full");
-    //     return -1;
-    // }
+    if(results_queue_.size() >= thread_num_ * 4){
+        RCLCPP_DEBUG(rclcpp::get_logger("InferencerPool"), "InferencerPool queue is full");
+        return -1;
+    }
     results_queue_.push(thread_pool_->Submit(&ModelType::Infer, inferencers_[GetInferencerIndex()], std::forward<InputType>(input)));
     RCLCPP_DEBUG(rclcpp::get_logger("InferencerPool"), "Put input into inferencer pool, current queue size: %zu", results_queue_.size());
     return 0;

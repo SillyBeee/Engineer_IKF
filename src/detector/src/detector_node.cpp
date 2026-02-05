@@ -11,7 +11,7 @@ using namespace std;
 
 DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
-    this->declare_parameter("model_path", "model/best_prune.rknn");
+    this->declare_parameter("model_path", "model/best_n.rknn");
     this->declare_parameter("model_format", "rknn");
     this->declare_parameter("thread_num", 3);
 
@@ -144,7 +144,7 @@ void DetectorNode::DrawDetections(cv::Mat& image, const std::vector<PoseResult>&
 
 
 void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "Received image");
+    // RCLCPP_INFO(this->get_logger(), "Received image");
     std::shared_ptr<cv::Mat> frame;
     try {
         frame = std::make_shared<cv::Mat>(cv_bridge::toCvCopy(msg)->image);
