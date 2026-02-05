@@ -71,6 +71,18 @@ if(BUILD_TESTING)
 endif()
 
 
+ament_auto_add_executable(detector_main
+  src/main.cpp
+)
+
+ament_target_dependencies(detector_main
+  rclcpp
+)
+
+target_link_libraries(detector_main
+  ${PROJECT_NAME}
+)
+
 install(FILES ${RKNNRT_LIB}
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -78,6 +90,8 @@ install(FILES ${RKNNRT_LIB}
 install(FILES ${RKNNRT_LIB}
   DESTINATION lib
 )
+
+
 
 ament_auto_package(
     INSTALL_TO_SHARE

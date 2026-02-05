@@ -26,6 +26,7 @@ private:
     // ROS
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr sub_image_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_image_;
+    rclcpp::CallbackGroup::SharedPtr callback_group_;
 
     
     std::filesystem::path model_path_;

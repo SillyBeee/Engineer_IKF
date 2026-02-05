@@ -13,7 +13,7 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     : Node("detector_node", options) {
     this->declare_parameter("model_path", "model/best_n.rknn");
     this->declare_parameter("model_format", "rknn");
-    this->declare_parameter("thread_num", 3);
+    this->declare_parameter("thread_num", 6);
 
     model_path_ = this->get_parameter("model_path").as_string();
     std::string model_full_path = PKG_SOURCE_DIR+model_path_.string();
@@ -35,19 +35,22 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     inferencers[0]->SetNPUCore(RKNN_NPU_CORE_0);
     inferencers[1]->SetNPUCore(RKNN_NPU_CORE_1);
     inferencers[2]->SetNPUCore(RKNN_NPU_CORE_2);
-    // inferencers[3]->SetNPUCore(RKNN_NPU_CORE_ALL);
-    // inferencers[4]->SetNPUCore(RKNN_NPU_CORE_ALL);
-    // inferencers[5]->SetNPUCore(RKNN_NPU_CORE_ALL);
+    inferencers[3]->SetNPUCore(RKNN_NPU_CORE_ALL);
+    inferencers[4]->SetNPUCore(RKNN_NPU_CORE_ALL);
+    inferencers[5]->SetNPUCore(RKNN_NPU_CORE_ALL);
                                                                                                       
 
-    auto qos = rclcpp::SensorDataQoS();
-    qos.keep_last(2);
-    // qos.durability_volatile();
+    callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    rclcpp::SubscriptionOptions sub_options;
+    sub_options.callback_group = callback_group_;
+    auto sensor_qos = rclcpp::QoS(10);
+    sensor_qos.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
 
     sub_image_ = this->create_subscription<sensor_msgs::msg::Image>(
         "/image", 
-        10,
-        std::bind(&DetectorNode::ImageCallback, this, std::placeholders::_1));
+        sensor_qos,
+        std::bind(&DetectorNode::ImageCallback, this, std::placeholders::_1),
+        sub_options);
 
     pub_image_ = this->create_publisher<sensor_msgs::msg::Image>("/detector/result", 10);
 
@@ -145,6 +148,21 @@ void DetectorNode::DrawDetections(cv::Mat& image, const std::vector<PoseResult>&
 
 void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
     // RCLCPP_INFO(this->get_logger(), "Received image");
+
+
+    static int frame_count = 0;
+    static auto start_time = std::chrono::steady_clock::now();
+    frame_count++;
+        if(frame_count == 120){
+            auto end_time = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+            double fps = frame_count * 1000.0 / elapsed;
+            RCLCPP_WARN(this->get_logger(), "Receive FPS: %.2f", fps);
+            frame_count = 0;
+            start_time = std::chrono::steady_clock::now();
+    }
+
+
     std::shared_ptr<cv::Mat> frame;
     try {
         frame = std::make_shared<cv::Mat>(cv_bridge::toCvCopy(msg)->image);
@@ -161,8 +179,6 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
         return;
     }
 
-
-    
 }
 
 

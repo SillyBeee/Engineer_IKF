@@ -2,6 +2,8 @@
 #include "thread_pool.hpp"
 #include <mutex>
 #include <new>
+#include <condition_variable>
+#include <queue>
 
 
 template <typename ModelType, typename InputType, typename OutputType>
@@ -11,7 +13,7 @@ public:
 
     int Init();
 
-    int Put(InputType& input);
+    int Put(InputType input);
 
     int Get(OutputType& output);
 
@@ -26,12 +28,17 @@ private:
     std::string model_path_;
     size_t thread_num_;
     
-
     long long id;
     std::mutex idMtx, queueMtx;
     std::unique_ptr<ThreadPool> thread_pool_;
     std::queue<std::future<OutputType>> results_queue_;
     std::vector<std::shared_ptr<ModelType>> inferencers_;
+    std::mutex inferencer_mtx_;
+    std::condition_variable inferencer_cv_;
+    std::queue<int> available_indices_;
+    
+    int AcquireAvailableInferencer();
+    void ReleaseInferencer(int index);
 };
 
 //构造函数
@@ -46,8 +53,8 @@ int InferencerPool<ModelType, InputType, OutputType>::Init(){
         this->thread_pool_ = std::make_unique<ThreadPool>(thread_num_);
         for(size_t i = 0; i < thread_num_; ++i){
             auto inferencer = std::make_shared<ModelType>(model_path_);
-            
             inferencers_.push_back(inferencer);
+            available_indices_.push(static_cast<int>(i));
         }
     }
     catch(const std::bad_alloc& e){
@@ -66,27 +73,56 @@ int InferencerPool<ModelType, InputType, OutputType>::GetInferencerIndex() {
 }
 
 template <typename ModelType, typename InputType, typename OutputType>
-int InferencerPool<ModelType, InputType, OutputType>::Put(InputType& input){
-    std::lock_guard<std::mutex> lock(queueMtx);
-    if(results_queue_.size() >= thread_num_ * 4){
-        RCLCPP_DEBUG(rclcpp::get_logger("InferencerPool"), "InferencerPool queue is full");
-        return -1;
+int InferencerPool<ModelType, InputType, OutputType>::Put(InputType input){
+    {
+        std::lock_guard<std::mutex> lock(queueMtx);
+        if(results_queue_.size() >= thread_num_ * 4){
+            RCLCPP_DEBUG(rclcpp::get_logger("InferencerPool"), "InferencerPool queue is full");
+            return -1;
+        }
     }
-    results_queue_.push(thread_pool_->Submit(&ModelType::Infer, inferencers_[GetInferencerIndex()], std::forward<InputType>(input)));
-    RCLCPP_DEBUG(rclcpp::get_logger("InferencerPool"), "Put input into inferencer pool, current queue size: %zu", results_queue_.size());
+    auto future = thread_pool_->Submit([this, input = std::move(input)]() mutable {
+        int inferencer_index = AcquireAvailableInferencer();
+        auto inferencer = inferencers_[inferencer_index];
+        OutputType result = inferencer->Infer(input);
+        ReleaseInferencer(inferencer_index);
+        return result;
+    });
+    {
+        std::lock_guard<std::mutex> lock(queueMtx);
+        results_queue_.push(std::move(future));
+        RCLCPP_DEBUG(rclcpp::get_logger("InferencerPool"), "Put input into inferencer pool, current queue size: %zu", results_queue_.size());
+    }
     return 0;
 }
-
-
 template <typename ModelType, typename InputType, typename OutputType>
-int InferencerPool<ModelType, InputType, OutputType>::Get(OutputType& output){
+int InferencerPool<ModelType, InputType, OutputType>::Get(OutputType& output) {
     std::lock_guard<std::mutex> lock(queueMtx);
-    if(results_queue_.empty()){
+    if (results_queue_.empty()) {
         return -1;
     }
     output = results_queue_.front().get();
     results_queue_.pop();
     return 0;
+}
+
+template <typename ModelType, typename InputType, typename OutputType>
+int InferencerPool<ModelType, InputType, OutputType>::AcquireAvailableInferencer() {
+    std::unique_lock<std::mutex> lock(inferencer_mtx_);
+    inferencer_cv_.wait(lock, [this]() {
+        return !available_indices_.empty();
+    });
+    int index = available_indices_.front();
+    available_indices_.pop();
+    return index;
+}
+template <typename ModelType, typename InputType, typename OutputType>
+void InferencerPool<ModelType, InputType, OutputType>::ReleaseInferencer(int index) {
+    {
+        std::lock_guard<std::mutex> lock(inferencer_mtx_);
+        available_indices_.push(index);
+    }
+    inferencer_cv_.notify_one();
 }
 
 template <typename ModelType, typename InputType, typename OutputType>

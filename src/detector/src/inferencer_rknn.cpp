@@ -57,9 +57,6 @@ void Inferencer_RKNN::InitModel(const std::string& model_path){
             return; 
         }
 
-        rknn_core_mask core_mask = RKNN_NPU_CORE_ALL;
-        ret = rknn_set_core_mask(rknn_ctx_, core_mask);
-        if (ret < 0) { RCLCPP_ERROR(this->logger_, "rknn_set_core_mask fail!"); return; }
 
         // 3. 查询输入输出数量
         ret = rknn_query(rknn_ctx_, RKNN_QUERY_IN_OUT_NUM, &io_num_, sizeof(io_num_));
