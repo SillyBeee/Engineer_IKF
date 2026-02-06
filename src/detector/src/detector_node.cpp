@@ -66,6 +66,8 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
 
     pub_image_ = this->create_publisher<sensor_msgs::msg::Image>("/detector/result", 10);
 
+    techcore_marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/detector/techcore_marker", 10);
+
 
     this->main_loop_ = std::thread(&DetectorNode::MainLoop, this);
 
@@ -107,6 +109,12 @@ void DetectorNode::MainLoop() {
 
         if (results.empty()) {
             continue;
+        }
+
+        //发布marker可视化
+        TechCorePose pose = ProcessPNP(results[0].kpts);
+        if(pose.x!=0 || pose.y!=0 || pose.z!=0){
+            VisualizeTechCore(pose);
         }
 
         //绘制并发布
@@ -236,7 +244,7 @@ void DetectorNode::VisualizeTechCore(TechCorePose& pose){
     }
     visualization_msgs::msg::Marker marker;
     marker.header.stamp = this->now();
-    marker.header.frame_id = techcore_marker_frame_;
+    marker.header.frame_id = "camera";
     marker.ns = "techcore_pose";
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::ARROW;

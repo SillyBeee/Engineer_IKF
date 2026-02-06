@@ -11,7 +11,6 @@
 #include <opencv2/opencv.hpp>
 #include <filesystem>
 #include <vector>
-#include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
