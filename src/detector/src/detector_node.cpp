@@ -15,6 +15,18 @@ DetectorNode::DetectorNode(const rclcpp::NodeOptions & options)
     this->declare_parameter("model_format", "rknn");
     this->declare_parameter("thread_num", 6);
 
+    this->camera_matrix_ = [this]()->cv::Mat{
+        auto para = this->declare_parameter("camera_matrix", std::vector<double>{0,0,0,0,0,0,0,0,0});
+        cv::Mat mat = cv::Mat(3, 3, CV_64F, para.data()).clone();
+        return mat;
+    }();
+
+    this->dist_coeffs_ = [this]()->cv::Mat{
+        auto para = this->declare_parameter("dist_coeffs", std::vector<double>{0,0,0,0,0,0,0,0,0});
+        cv::Mat mat = cv::Mat(5, 1, CV_64F, para.data()).clone();
+        return mat;
+    }();
+
     model_path_ = this->get_parameter("model_path").as_string();
     std::string model_full_path = PKG_SOURCE_DIR+model_path_.string();
     RCLCPP_INFO(this->get_logger(), "Loading model: %s", model_full_path.c_str());
@@ -182,6 +194,68 @@ void DetectorNode::ImageCallback(const sensor_msgs::msg::Image::SharedPtr msg) {
 }
 
 
+TechCorePose DetectorNode::ProcessPNP(std::vector<KeyPoint> kpts){
+    if (kpts.size() < 4) {
+        RCLCPP_DEBUG(this->get_logger(), "Not enough keypoints for PnP");
+        return {};
+    }
 
+    // 提取 2D 点
+    std::vector<cv::Point2f> image_points;
+    for (const auto& kp : kpts) {
+        image_points.emplace_back(kp.x, kp.y);
+    }
+
+    // 假设我们有对应的 3D 点
+    std::vector<cv::Point3f> object_points = {
+        {0, 0, 0}, {0, 1, 0}, {1, 1, 0}, {1, 0, 0}
+    };
+
+    cv::Mat rvec, tvec;
+    cv::solvePnP(object_points, image_points, camera_matrix_, dist_coeffs_, rvec, tvec);
+
+    TechCorePose pose;
+    pose.x = tvec.at<double>(0);
+    pose.y = tvec.at<double>(1);
+    pose.z = tvec.at<double>(2);
+    cv::Mat R;
+    cv::Rodrigues(rvec, R);
+    double sy = sqrt(R.at<double>(0,0)*R.at<double>(0,0) + R.at<double>(1,0)*R.at<double>(1,0));
+    bool singular = sy < 1e-6;
+    pose.roll  = atan2(R.at<double>(2,1), R.at<double>(2,2));
+    pose.pitch = singular ? atan2(-R.at<double>(2,0), sy)
+                          : atan2(-R.at<double>(2,0), sy);
+    pose.yaw   = atan2(R.at<double>(1,0), R.at<double>(0,0));
+
+    return pose;
+}
+
+void DetectorNode::VisualizeTechCore(TechCorePose& pose){
+    if (!techcore_marker_pub_) {
+        return;
+    }
+    visualization_msgs::msg::Marker marker;
+    marker.header.stamp = this->now();
+    marker.header.frame_id = techcore_marker_frame_;
+    marker.ns = "techcore_pose";
+    marker.id = 0;
+    marker.type = visualization_msgs::msg::Marker::ARROW;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.pose.position.x = pose.x;
+    marker.pose.position.y = pose.y;
+    marker.pose.position.z = pose.z;
+    tf2::Quaternion q;
+    q.setRPY(pose.roll, pose.pitch, pose.yaw);
+    marker.pose.orientation = tf2::toMsg(q);
+    marker.scale.x = 0.3;
+    marker.scale.y = 0.05;
+    marker.scale.z = 0.05;
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f;
+    marker.color.b = 0.0f;
+    marker.color.a = 1.0f;
+    marker.lifetime = rclcpp::Duration::from_seconds(0.5);
+    techcore_marker_pub_->publish(marker);
+}
 
 RCLCPP_COMPONENTS_REGISTER_NODE(DetectorNode)

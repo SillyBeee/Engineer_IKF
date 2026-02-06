@@ -18,6 +18,7 @@
   <depend>image_transport_plugins</depend>
   <depend>interfaces</depend>
   <depend>rclcpp_components</depend>
+  <depend>visualization_msgs</depend>
 
 
   <export>
